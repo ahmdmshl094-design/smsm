@@ -4,7 +4,7 @@
     "autoCreateDB": true,
     "iconUnsend": {
         "status": true,
-        "icon": "💓"
+        "icon": "😪"
     },
     "notiGroup": false,
     "NOTIFICATION": true,
@@ -15,9 +15,9 @@
     "BOTNAME": "",
     "AMDIN_NAME": "𝐁𝐎𝐓",
     "FACEBOOK_ADMIN": "",
-    "PREFIX": ".",
+    "PREFIX": "/",
     "ADMINBOT": [
-        "61576232405796"
+        "61570782968645"
     ],
     "NDH": [
         ""
