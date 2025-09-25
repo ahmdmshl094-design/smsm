@@ -1,32 +1,25 @@
-  module.exports.config = {
-  name: "هلب",
+module.exports.config = {
+  name: "اوامر",
   version: "1.0.2",
   hasPermssion: 0,
-  credits: "عمر",
-  description: "الاوامر",
-  commandCategory: "خدمات",
-  usages: "[دليل المستخدم ]",
-  cooldowns: 1,
+  credits: "كولو سان 🇸🇩",
+  description: "قائمة الأوامر كاملة",
+  commandCategory: "النظام",
+  usages: "[اسم الأمر | رقم الصفحة]",
+  cooldowns: 5,
   envConfig: {
     autoUnsend: true,
-    delayUnsend: 300
+    delayUnsend: 20
   }
 };
 
 module.exports.languages = {
-  //"vi": {
-  //	"moduleInfo": "「 %1 」\n%2\n\n❯ Cách sử dụng: %3\n❯ Thuộc nhóm: %4\n❯ Thời gian chờ: %5 giây(s)\n❯ Quyền hạn: %6\n\n» Module code by %7 «",
-  //	"helpList": '[ Hiện tại đang có %1 lệnh có thể sử dụng trên bot này, Sử dụng: "%2help nameCommand" để xem chi tiết cách sử dụng! ]"',
-  //	"user": "Người dùng",
-  //      "adminGroup": "Quản trị viên nhóm",
-  //      "adminBot": "Quản trị viên bot"
-//	},
   "en": {
-    "moduleInfo": "『 %1』\n%2\n←كيفية الاستخدام: %3\n←فئة: %4\n←وقت الانتظار: %5 ثواني(s)\n←من لديه الصلاحية: %6\n\n←طور بواسطة %7",
-    "helpList": '[ There are %1 commands on this bot, Use: "%2help nameCommand" to know how to use! ]',
-    "user": "『الكل』",
-        "adminGroup": "『مسؤل القروب』",
-        "adminBot": "『المطور』"
+    "moduleInfo": "✨『 %1 』✨\n📜 الوصف: %2\n⚡ الاستخدام: %3\n📂 الفئة: %4\n⏳ وقت الانتظار: %5 ثانية\n👑 الصلاحية: %6\n\n💡 المطور: %7",
+    "helpList": "⚡ يوجد %1 من الأوامر في البوت ⚡\nاستخدم: %2help اسم_الأمر لعرض التفاصيل.\n━━━━━━━━━━━━━━━",
+    "user": "👤 مستخدم",
+    "adminGroup": "👑 مشرف المجموعة",
+    "adminBot": "🔱 مطور البوت"
   }
 };
 
@@ -34,16 +27,31 @@ module.exports.handleEvent = function ({ api, event, getText }) {
   const { commands } = global.client;
   const { threadID, messageID, body } = event;
 
-  if (!body || typeof body == "undefined" || body.indexOf("اوامر") != 0) return;
-  const splitBody = body.slice(body.indexOf("أوامر")).trim().split(/\s+/);
+  if (!body || typeof body == "cmd" || body.indexOf("help") != 0) return;
+  const splitBody = body.slice(body.indexOf("help")).trim().split(/\s+/);
   if (splitBody.length == 1 || !commands.has(splitBody[1].toLowerCase())) return;
+
   const threadSetting = global.data.threadData.get(parseInt(threadID)) || {};
   const command = commands.get(splitBody[1].toLowerCase());
   const prefix = (threadSetting.hasOwnProperty("PREFIX")) ? threadSetting.PREFIX : global.config.PREFIX;
-  return api.sendMessage(getText("moduleInfo", command.config.name, command.config.description, `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`, command.config.commandCategory, command.config.cooldowns, ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")), command.config.credits), threadID, messageID);
-}
 
-module.exports. run = function({ api, event, args, getText }) {
+  return api.sendMessage(
+    getText("moduleInfo",
+      command.config.name,
+      command.config.description,
+      `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`,
+      command.config.commandCategory,
+      command.config.cooldowns,
+      ((command.config.hasPermssion == 0) ? getText("user") :
+        (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")),
+      command.config.credits
+    ),
+    threadID,
+    messageID
+  );
+};
+
+module.exports.run = function ({ api, event, args, getText }) {
   const { commands } = global.client;
   const { threadID, messageID } = event;
   const command = commands.get((args[0] || "").toLowerCase());
@@ -51,40 +59,63 @@ module.exports. run = function({ api, event, args, getText }) {
   const { autoUnsend, delayUnsend } = global.configModule[this.config.name];
   const prefix = (threadSetting.hasOwnProperty("PREFIX")) ? threadSetting.PREFIX : global.config.PREFIX;
 
+  // لو مافي أمر محدد
   if (!command) {
     const arrayInfo = [];
     const page = parseInt(args[0]) || 1;
-    const numberOfOnePage = 20;
-    //*số thứ tự 1 2 3.....cú pháp ${++i}*//
+    const numberOfOnePage = 50;
     let i = 0;
-    let msg = "";
+
+    let msg = "╭─━─━─━─━─━─━─━─━─╮\n";
+    msg += "     ✨ قائمة أوامر البوت ✨\n";
+    msg += "╰─━─━─━─━─━─━─━─━─╯\n\n";
 
     for (var [name, value] of (commands)) {
-      name += ``;
-      arrayInfo.push(name);
+      arrayInfo.push({ name, ...value.config });
     }
 
-    arrayInfo.sort((a, b) => a.data - b.data);
+    // ترتيب الأوامر حسب الفئة
+    const categories = {};
+    arrayInfo.forEach(cmd => {
+      if (!categories[cmd.commandCategory]) categories[cmd.commandCategory] = [];
+      categories[cmd.commandCategory].push(cmd);
+    });
 
-    const startSlice = numberOfOnePage*page - numberOfOnePage;
-    i = startSlice;
-    const returnArray = arrayInfo.slice(startSlice, startSlice + numberOfOnePage);
+    for (let category in categories) {
+      msg += `📂 【 ${category.toUpperCase()} 】 📂\n`;
+      categories[category].forEach(cmd => {
+        msg += `✨ ${++i}. ${cmd.name}\n   📜 ${cmd.description}\n`;
+      });
+      msg += "━━━━━━━━━━━━━━━\n\n";
+    }
 
-    for (let item of returnArray) msg += ` ${++i}. ${prefix}${item}\n`;
+    msg += `📖 الصفحة: (${page}/${Math.ceil(arrayInfo.length / numberOfOnePage)})\n`;
+    msg += `👑 البادئة: 「 ${prefix} 」\n`;
+    msg += `⚡ عدد الأوامر: ${arrayInfo.length}\n`;
+    msg += "━━━━━━━━━━━━━━━\n";
+    msg += "💡 المطور: كولو سان 🇸🇩";
 
-
-    const siu = `───「قائمة الاوامر」───`;
-
- const text = `\nالصفحة (${page}/${Math.ceil(arrayInfo.length/numberOfOnePage)})\n استخدم ${prefix}الاوامر  وبعدها اسم الامر للاستعلام 
- `;
-
-    return api.sendMessage(siu + "\n\n" + msg  + text, threadID, async (error, info) => {
+    return api.sendMessage(msg, threadID, async (error, info) => {
       if (autoUnsend) {
         await new Promise(resolve => setTimeout(resolve, delayUnsend * 1000));
         return api.unsendMessage(info.messageID);
-      } else return;
-    }, event.messageID);
+      }
+    });
   }
 
-  return api.sendMessage(getText("moduleInfo", command.config.name, command.config.description, `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`, command.config.commandCategory, command.config.cooldowns, ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")), command.config.credits), threadID, messageID);
+  // لو أمر معين
+  return api.sendMessage(
+    getText("moduleInfo",
+      command.config.name,
+      command.config.description,
+      `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`,
+      command.config.commandCategory,
+      command.config.cooldowns,
+      ((command.config.hasPermssion == 0) ? getText("user") :
+        (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")),
+      command.config.credits
+    ),
+    threadID,
+    messageID
+  );
 };
