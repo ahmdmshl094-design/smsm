@@ -1,57 +1,29 @@
 module.exports.config = {
   name: "اوامر",
-  version: "1.0.2",
+  version: "1.0.6",
   hasPermssion: 0,
-  credits: "كولو سان 🇸🇩",
-  description: "قائمة الأوامر كاملة",
-  commandCategory: "النظام",
-  usages: "[اسم الأمر | رقم الصفحة]",
+  credits: "انس + تصميم منسق بواسطة محمد إدريس",
+  description: "قائمة الأوامر بشكل منسق وجميل",
+  commandCategory: "نظام",
+  usages: "[رقم الصفحة]",
   cooldowns: 5,
   envConfig: {
-    autoUnsend: true,
+    autoUnsend: false, // تم تعطيل الحذف التلقائي
     delayUnsend: 20
   }
 };
 
 module.exports.languages = {
   "en": {
-    "moduleInfo": "✨『 %1 』✨\n📜 الوصف: %2\n⚡ الاستخدام: %3\n📂 الفئة: %4\n⏳ وقت الانتظار: %5 ثانية\n👑 الصلاحية: %6\n\n💡 المطور: %7",
-    "helpList": "⚡ يوجد %1 من الأوامر في البوت ⚡\nاستخدم: %2help اسم_الأمر لعرض التفاصيل.\n━━━━━━━━━━━━━━━",
-    "user": "👤 مستخدم",
-    "adminGroup": "👑 مشرف المجموعة",
-    "adminBot": "🔱 مطور البوت"
+    "moduleInfo": "「 %1 」\n%2\n\n❯ Usage: %3\n❯ Category: %4\n❯ Waiting time: %5 seconds(s)\n❯ Permission: %6\n\n» Module code by %7 «",
+    "helpList": '[ There are %1 commands on this bot, Use: "%2help nameCommand" to know how to use! ]',
+    "user": "User",
+    "adminGroup": "Admin group",
+    "adminBot": "Admin bot"
   }
 };
 
-module.exports.handleEvent = function ({ api, event, getText }) {
-  const { commands } = global.client;
-  const { threadID, messageID, body } = event;
-
-  if (!body || typeof body == "cmd" || body.indexOf("help") != 0) return;
-  const splitBody = body.slice(body.indexOf("help")).trim().split(/\s+/);
-  if (splitBody.length == 1 || !commands.has(splitBody[1].toLowerCase())) return;
-
-  const threadSetting = global.data.threadData.get(parseInt(threadID)) || {};
-  const command = commands.get(splitBody[1].toLowerCase());
-  const prefix = (threadSetting.hasOwnProperty("PREFIX")) ? threadSetting.PREFIX : global.config.PREFIX;
-
-  return api.sendMessage(
-    getText("moduleInfo",
-      command.config.name,
-      command.config.description,
-      `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`,
-      command.config.commandCategory,
-      command.config.cooldowns,
-      ((command.config.hasPermssion == 0) ? getText("user") :
-        (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")),
-      command.config.credits
-    ),
-    threadID,
-    messageID
-  );
-};
-
-module.exports.run = function ({ api, event, args, getText }) {
+module.exports.run = function({ api, event, args, getText }) {
   const { commands } = global.client;
   const { threadID, messageID } = event;
   const command = commands.get((args[0] || "").toLowerCase());
@@ -59,63 +31,82 @@ module.exports.run = function ({ api, event, args, getText }) {
   const { autoUnsend, delayUnsend } = global.configModule[this.config.name];
   const prefix = (threadSetting.hasOwnProperty("PREFIX")) ? threadSetting.PREFIX : global.config.PREFIX;
 
-  // لو مافي أمر محدد
   if (!command) {
-    const arrayInfo = [];
-    const page = parseInt(args[0]) || 1;
-    const numberOfOnePage = 50;
-    let i = 0;
 
-    let msg = "╭─━─━─━─━─━─━─━─━─╮\n";
-    msg += "     ✨ قائمة أوامر البوت ✨\n";
-    msg += "╰─━─━─━─━─━─━─━─━─╯\n\n";
-
-    for (var [name, value] of (commands)) {
-      arrayInfo.push({ name, ...value.config });
-    }
-
-    // ترتيب الأوامر حسب الفئة
+    // تقسيم الأوامر حسب الفئات
     const categories = {};
-    arrayInfo.forEach(cmd => {
-      if (!categories[cmd.commandCategory]) categories[cmd.commandCategory] = [];
-      categories[cmd.commandCategory].push(cmd);
-    });
-
-    for (let category in categories) {
-      msg += `📂 【 ${category.toUpperCase()} 】 📂\n`;
-      categories[category].forEach(cmd => {
-        msg += `✨ ${++i}. ${cmd.name}\n   📜 ${cmd.description}\n`;
-      });
-      msg += "━━━━━━━━━━━━━━━\n\n";
+    for (let [name, value] of commands) {
+      const cat = value.config.commandCategory || "عام";
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(name);
     }
 
-    msg += `📖 الصفحة: (${page}/${Math.ceil(arrayInfo.length / numberOfOnePage)})\n`;
-    msg += `👑 البادئة: 「 ${prefix} 」\n`;
-    msg += `⚡ عدد الأوامر: ${arrayInfo.length}\n`;
-    msg += "━━━━━━━━━━━━━━━\n";
-    msg += "💡 المطور: كولو سان 🇸🇩";
+    const categoryMap = {
+      "نظام": "النظام",
+      "ترفية": "الترفية",
+      "اقتصاد": "الاقتصاد",
+      "العاب": "الألعاب",
+      "ذكاء صناعي": "الذكاء الصناعي",
+      "مطور": "المطور",
+      "عام": "عام"
+    };
 
-    return api.sendMessage(msg, threadID, async (error, info) => {
-      if (autoUnsend) {
-        await new Promise(resolve => setTimeout(resolve, delayUnsend * 1000));
-        return api.unsendMessage(info.messageID);
+    let blocks = [];
+    let count = 0;
+
+    for (let cat in categories) {
+      const cmds = categories[cat].sort();
+      let block = `╭── 🍁 ${categoryMap[cat] || cat} 🍁 ──╮\n`;
+
+      // تقسيم الأوامر 5 في كل سطر
+      for (let i = 0; i < cmds.length; i += 5) {
+        const row = cmds.slice(i, i + 5).join(" | "); // فصل الأوامر بشرطة
+        block += `│ ${row}\n`;
+        count += row.split("|").length;
       }
-    });
+
+      block += `╰────────────╯`;
+      blocks.push(block);
+    }
+
+    // تقسيم الصفحات
+    const totalPages = 3;
+    const perPage = Math.ceil(blocks.length / totalPages);
+    const page = parseInt(args[0]) || 1;
+
+    if (page < 1 || page > totalPages)
+      return api.sendMessage(`⚠️ اختر صفحة بين 1 - ${totalPages}`, threadID, messageID);
+
+    const start = (page - 1) * perPage;
+    const finalBlocks = blocks.slice(start, start + perPage).join("\n\n");
+
+    const msg = `
+『🦋ᏒᎥፚᏋᏁ  🕸』
+── قائمة الأوامر ──
+
+${finalBlocks}
+
+📄 الصفحة: ${page}/${totalPages}
+📦 عدد الأوامر: ${count}
+💡 استخدم: ${prefix}help [اسم الأمر]
+
+${page === 1 ? "🌿 اللهم صل وسلم على سيدنا محمد 🌿" : ""}
+`;
+
+    return api.sendMessage(msg, threadID);
   }
 
-  // لو أمر معين
+  // معلومات أمر معيّن
   return api.sendMessage(
-    getText("moduleInfo",
+    getText(
+      "moduleInfo",
       command.config.name,
       command.config.description,
       `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`,
       command.config.commandCategory,
       command.config.cooldowns,
-      ((command.config.hasPermssion == 0) ? getText("user") :
-        (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")),
+      ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")),
       command.config.credits
-    ),
-    threadID,
-    messageID
+    ), threadID, messageID
   );
 };
