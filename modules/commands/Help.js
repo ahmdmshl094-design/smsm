@@ -1,14 +1,14 @@
 module.exports.config = {
   name: "اوامر",
-  version: "1.0.6",
+  version: "1.0.2",
   hasPermssion: 0,
-  credits: "انس + تصميم منسق بواسطة محمد إدريس",
-  description: "قائمة الأوامر بشكل منسق وجميل",
+  credits: "كولو",
+  description: "قائمة الاوامر",
   commandCategory: "نظام",
   usages: "[رقم الصفحة]",
   cooldowns: 5,
   envConfig: {
-    autoUnsend: false, // تم تعطيل الحذف التلقائي
+    autoUnsend: false, // يمكنك تغييره true إذا أردت الحذف التلقائي
     delayUnsend: 20
   }
 };
@@ -23,7 +23,7 @@ module.exports.languages = {
   }
 };
 
-module.exports.run = function({ api, event, args, getText }) {
+module.exports.run = async function({ api, event, args, getText }) {
   const { commands } = global.client;
   const { threadID, messageID } = event;
   const command = commands.get((args[0] || "").toLowerCase());
@@ -32,71 +32,39 @@ module.exports.run = function({ api, event, args, getText }) {
   const prefix = (threadSetting.hasOwnProperty("PREFIX")) ? threadSetting.PREFIX : global.config.PREFIX;
 
   if (!command) {
-
-    // تقسيم الأوامر حسب الفئات
-    const categories = {};
-    for (let [name, value] of commands) {
-      const cat = value.config.commandCategory || "عام";
-      if (!categories[cat]) categories[cat] = [];
-      categories[cat].push(name);
-    }
-
-    const categoryMap = {
-      "نظام": "النظام",
-      "ترفية": "الترفية",
-      "اقتصاد": "الاقتصاد",
-      "العاب": "الألعاب",
-      "ذكاء صناعي": "الذكاء الصناعي",
-      "مطور": "المطور",
-      "عام": "عام"
-    };
-
-    let blocks = [];
-    let count = 0;
-
-    for (let cat in categories) {
-      const cmds = categories[cat].sort();
-      let block = `╭── 🍁 ${categoryMap[cat] || cat} 🍁 ──╮\n`;
-
-      // تقسيم الأوامر 5 في كل سطر
-      for (let i = 0; i < cmds.length; i += 5) {
-        const row = cmds.slice(i, i + 5).join(" | "); // فصل الأوامر بشرطة
-        block += `│ ${row}\n`;
-        count += row.split("|").length;
-      }
-
-      block += `╰────────────╯`;
-      blocks.push(block);
-    }
-
-    // تقسيم الصفحات
+    const allCommands = Array.from(commands.keys()).sort();
     const totalPages = 3;
-    const perPage = Math.ceil(blocks.length / totalPages);
-    const page = parseInt(args[0]) || 1;
+    const page = Math.min(Math.max(parseInt(args[0]) || 1, 1), totalPages);
+    const perPage = Math.ceil(allCommands.length / totalPages);
+    const slice = allCommands.slice((page-1)*perPage, page*perPage);
 
-    if (page < 1 || page > totalPages)
-      return api.sendMessage(`⚠️ اختر صفحة بين 1 - ${totalPages}`, threadID, messageID);
+    let msg = "╭─⋅⋅─☾─⋅⋅─╮\n";
+    msg += `  ◆ ◈  قائمة أوامر Kiros ◈ ◆\n`;
+    msg += "╰─⋅⋅─☾─⋅⋅─╯\n\n";
 
-    const start = (page - 1) * perPage;
-    const finalBlocks = blocks.slice(start, start + perPage).join("\n\n");
+    // تقسيم الأوامر 5 في كل سطر
+    for (let i = 0; i < slice.length; i += 5) {
+      const row = slice.slice(i, i + 5).join(" • ");
+      msg += `│  ${row}\n`;
+    }
 
-    const msg = `
-『🦋ᏒᎥፚᏋᏁ  🕸』
-── قائمة الأوامر ──
+    msg += "\n╭─⋅⋅─☾─⋅⋅─╮\n";
+    msg += ` › إجمالي الأوامر: ${allCommands.length}\n`;
+    msg += ` › الصفحة: ${page}/${totalPages}\n`;
+    msg += " › اسم البوت: Kiros\n";
+    msg += " › المطور: كولو\n";
+    msg += ` › استخدم: ${prefix}اوامر [رقم الصفحة]\n`;
+    msg += "╰─⋅⋅─☾─⋅⋅─╯";
 
-${finalBlocks}
-
-📄 الصفحة: ${page}/${totalPages}
-📦 عدد الأوامر: ${count}
-💡 استخدم: ${prefix}help [اسم الأمر]
-
-${page === 1 ? "🌿 اللهم صل وسلم على سيدنا محمد 🌿" : ""}
-`;
-
-    return api.sendMessage(msg, threadID);
+    return api.sendMessage(msg, threadID, async (err, info) => {
+      if (autoUnsend) {
+        await new Promise(resolve => setTimeout(resolve, delayUnsend*1000));
+        return api.unsendMessage(info.messageID);
+      }
+    });
   }
 
-  // معلومات أمر معيّن
+  // عرض معلومات أمر محدد
   return api.sendMessage(
     getText(
       "moduleInfo",
@@ -107,6 +75,8 @@ ${page === 1 ? "🌿 اللهم صل وسلم على سيدنا محمد 🌿" :
       command.config.cooldowns,
       ((command.config.hasPermssion == 0) ? getText("user") : (command.config.hasPermssion == 1) ? getText("adminGroup") : getText("adminBot")),
       command.config.credits
-    ), threadID, messageID
+    ),
+    threadID,
+    messageID
   );
 };
