@@ -1,14 +1,14 @@
 module.exports.config = {
   name: "اوامر",
-  version: "2.0.0",
+  version: "3.1.0",
   hasPermssion: 0,
-  credits: "كولو + GPT",
-  description: "قائمة الاوامر بشكل فخم ومقسم إلى فئات",
+  credits: "كولو + GPT-5",
+  description: "قائمة أوامر مقسمة لصفحات وكل سطر يحتوي 5 أوامر",
   commandCategory: "نظام",
-  usages: "[رقم الصفحة]",
+  usages: "[1 | 2 | 3]",
   cooldowns: 5,
   envConfig: {
-    autoUnsend: false, // ❌ لا حذف تلقائي
+    autoUnsend: false,
     delayUnsend: 20
   }
 };
@@ -17,32 +17,45 @@ module.exports.run = async function({ api, event, args }) {
   const { commands } = global.client;
   const { threadID } = event;
 
-  // تقسيم الفئات
-  const categories = {};
+  const prefix = "/";
+  const page = parseInt(args[0]) || 1;
 
-  for (let [name, info] of commands) {
-    const cat = info.config.commandCategory || "غير مصنف";
-    if (!categories[cat]) categories[cat] = [];
-    categories[cat].push(name);
+  // تحويل الأوامر إلى مصفوفة
+  const allCmds = Array.from(commands.keys());
+
+  // تقسيم إلى 3 صفحات بالتساوي
+  const perPage = Math.ceil(allCmds.length / 3);
+  const pages = [
+    allCmds.slice(0, perPage),
+    allCmds.slice(perPage, perPage * 2),
+    allCmds.slice(perPage * 2)
+  ];
+
+  if (page < 1 || page > 3) {
+    return api.sendMessage(`❌ اختر صفحة من 1 إلى 3 فقط.`, threadID);
   }
 
-  // استايل فخم
-  let msg = `
-╭─⭓〔 ✨ قائمة أوامر البوت ✨ 〕⭓──╮
-│  البادئة المستخدمة:  [ / ]
-│  عدد الأوامر: ${commands.size}
+  const cmds = pages[page - 1];
+
+  // كل 5 أوامر في سطر
+  const formatted = [];
+  for (let i = 0; i < cmds.length; i += 5) {
+    formatted.push("• " + cmds.slice(i, i + 5).join("   • "));
+  }
+
+  // رسالة الاستايل
+  const msg = `
+╭─⭓〔 📄 قائمة الأوامر – صفحة ${page} من 3 〕⭓──╮
 ├───────────────────────────╯
+
+${formatted.join("\n")}
+
+────────────────────────
+📌 عدد الأوامر: ${allCmds.length}
+📌 البادئة: [ ${prefix} ]
+📌 طريقة الاستخدام: ${prefix}help اسم_الأمر
+📌 لفتح صفحة أخرى: ${prefix}اوامر 1 / 2 / 3
 `;
-
-  // عرض الفئات
-  for (let cat in categories) {
-    msg += `\n⟣─〔 ${cat} 〕─⟣\n`;
-    msg += categories[cat].map(cmd => `• ${cmd}`).join("\n");
-    msg += "\n──────────────────────\n";
-  }
-
-  msg += "⚠️ ملاحظة: لعرض شرح أي أمر استخدم:\n  /help اسم_الأمر\n\n";
-  msg += "✨ تم تصميم الاستايل بشكل فخم ومنظم";
 
   return api.sendMessage(msg, threadID);
 };
