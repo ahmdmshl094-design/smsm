@@ -28,3 +28,91 @@ module.exports.run = function({ api, event, args, getText }) {
   const { threadID, messageID } = event;
   const command = commands.get((args[0] || "").toLowerCase());
   const threadSetting = global.data.threadData.get(parseInt(threadID)) || {};
+  const prefix = threadSetting.PREFIX || global.config.PREFIX;
+
+  if (!command) {
+
+    // تقسيم الأوامر حسب الفئات
+    const categories = {};
+    for (let [name, value] of commands) {
+      const cat = value.config.commandCategory || "عام";
+      if (!categories[cat]) categories[cat] = [];
+      categories[cat].push(name);
+    }
+
+    const categoryMap = {
+      "نظام": "النظام",
+      "ترفية": "الترفية",
+      "اقتصاد": "الاقتصاد",
+      "العاب": "الألعاب",
+      "ذكاء صناعي": "الذكاء الصناعي",
+      "مطور": "المطور",
+      "عام": "عام"
+    };
+
+    let blocks = [];
+    let count = 0;
+
+    for (let cat in categories) {
+      const cmds = categories[cat].sort();
+      let block = `╭── 🍁 ${categoryMap[cat] || cat} 🍁 ──╮\n`;
+
+      // 5 أوامر في كل سطر
+      for (let i = 0; i < cmds.length; i += 5) {
+        const row = cmds.slice(i, i + 5).join(" | ");
+        block += `│ ${row}\n`;
+        count += row.split("|").length;
+      }
+
+      block += `╰────────────╯`;
+      blocks.push(block);
+    }
+
+    // عدد الصفحات
+    const totalPages = 3;
+    const perPage = Math.ceil(blocks.length / totalPages);
+    const page = parseInt(args[0]) || 1;
+
+    if (page < 1 || page > totalPages)
+      return api.sendMessage(`⚠️ اختر صفحة بين 1 - ${totalPages}`, threadID, messageID);
+
+    const start = (page - 1) * perPage;
+    const finalBlocks = blocks.slice(start, start + perPage).join("\n\n");
+
+    // الرسالة النهائية (بدون حذف تلقائي)
+    const msg = `
+『🦋ᏒᎥፚᏋᏁ 🕸』
+── قائمة الأوامر ──
+
+${finalBlocks}
+
+📄 الصفحة: ${page}/${totalPages}
+📦 عدد الأوامر: ${count}
+💡 استخدم: ${prefix}help [اسم الأمر]
+
+${page === 1 ? "🌿 اللهم صل وسلم على سيدنا محمد 🌿" : ""}
+`;
+
+    return api.sendMessage(msg, threadID);
+  }
+
+  // معلومات أمر معيّن
+  return api.sendMessage(
+    getText(
+      "moduleInfo",
+      command.config.name,
+      command.config.description,
+      `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`,
+      command.config.commandCategory,
+      command.config.cooldowns,
+      (command.config.hasPermssion == 0)
+        ? getText("user")
+        : (command.config.hasPermssion == 1)
+        ? getText("adminGroup")
+        : getText("adminBot"),
+      command.config.credits
+    ),
+    threadID,
+    messageID
+  );
+};
