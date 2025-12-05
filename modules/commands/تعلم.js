@@ -1,93 +1,142 @@
 const fs = require("fs");
-const path = __dirname + "/learned.json";
 
-// إنشاء قاعدة البيانات إذا غير موجودة
-if (!fs.existsSync(path)) fs.writeFileSync(path, JSON.stringify({}));
+// مسار قاعدة البيانات
+const learnedPath = __dirname + "/learned.json";
+if (!fs.existsSync(learnedPath)) fs.writeFileSync(learnedPath, JSON.stringify({}));
+let learned = JSON.parse(fs.readFileSync(learnedPath));
 
-let learned = JSON.parse(fs.readFileSync(path));
+// ملف وضع كارلوس
+const carlosPath = __dirname + "/carlos.json";
+if (!fs.existsSync(carlosPath)) fs.writeFileSync(carlosPath, JSON.stringify({ status: "off" }));
+let carlos = JSON.parse(fs.readFileSync(carlosPath));
+
+function saveLearned() {
+  fs.writeFileSync(learnedPath, JSON.stringify(learned, null, 2));
+}
+
+function saveCarlos() {
+  fs.writeFileSync(carlosPath, JSON.stringify(carlos, null, 2));
+}
 
 module.exports.config = {
   name: "تعلم",
-  version: "1.1.0",
+  version: "2.0.0",
   credits: "GPT + محمد إدريس",
-  description: "نظام تعليم الردود",
+  description: "نظام تعليم الردود مع وضع كارلوس",
   commandCategory: "النظام",
   usages: "تعلم الكلمة => الرد",
+  cooldowns: 2
 };
 
-// حفظ التعديلات
-function save() {
-  fs.writeFileSync(path, JSON.stringify(learned, null, 2));
+//  ✨ دالة التحقق هل المرسل أدمن القروب
+async function isAdmin(api, threadID, senderID) {
+  const info = await api.getThreadInfo(threadID);
+  return info.adminIDs.some(ad => ad.id == senderID);
 }
 
-// ID المطور الوحيد
-const devID = "61570782968645";
-
-module.exports.run = function ({ api, event, args }) {
-  const sender = event.senderID;
+module.exports.run = async function ({ api, event, args }) {
   const text = args.join(" ");
+  const sender = event.senderID;
 
-  // لو كتب فقط "تعلم"
-  if (args.length === 0)
+  // قائمة الأوامر لو كتب فقط "تعلم"
+  if (args.length === 0) {
     return api.sendMessage(
-      "استخدم:\nتعلم الكلمة => الرد\n\nأوامر المطور فقط:\nتعلم تعديل الكلمة => الرد الجديد\nتعلم حذف الكلمة\nتعلم قائمة",
+      "⚙️ **أوامر نظام التعلم**:\n\n" +
+      "📘 إضافة رد:\nتعلم الكلمة => الرد\n\n" +
+      "🛡 أوامر الأدمن فقط:\nتعلم تعديل الكلمة => الرد الجديد\nتعلم حذف الكلمة\nتعلم قائمة\nتعلم كارلوس on\nتعلم كارلوس off",
       event.threadID,
       event.messageID
     );
+  }
 
-  // عرض القائمة - للمطور فقط
+  // =======================
+  //    🔥 وضع كارلوس ON
+  // =======================
+  if (text === "كارلوس on") {
+    if (!(await isAdmin(api, event.threadID, sender)))
+      return api.sendMessage("❌ هذا الأمر للأدمن فقط.", event.threadID);
+
+    carlos.status = "on";
+    saveCarlos();
+    return api.sendMessage("⚡ تم تشغيل وضع **كارلوس** — البوت سيرد على أي كلمة متعلمة.", event.threadID);
+  }
+
+  // =======================
+  //    🔥 وضع كارلوس OFF
+  // =======================
+  if (text === "كارلوس off") {
+    if (!(await isAdmin(api, event.threadID, sender)))
+      return api.sendMessage("❌ هذا الأمر للأدمن فقط.", event.threadID);
+
+    carlos.status = "off";
+    saveCarlos();
+    return api.sendMessage("🛑 تم إيقاف وضع **كارلوس** — البوت سيرد فقط على: كايروس الكلمة", event.threadID);
+  }
+
+  // =======================
+  //      📝 قائمة الردود
+  // =======================
   if (text === "قائمة") {
-    if (sender !== devID)
-      return api.sendMessage("❌ هذا الأمر للمطور فقط.", event.threadID);
+    if (!(await isAdmin(api, event.threadID, sender)))
+      return api.sendMessage("❌ هذا الأمر للأدمن فقط.", event.threadID);
 
     if (Object.keys(learned).length === 0)
-      return api.sendMessage("مافي كلمات متعلمة.", event.threadID);
+      return api.sendMessage("📭 لا توجد كلمات متعلمة حالياً.", event.threadID);
 
-    let msg = "📚 قائمة الكلمات المتعلمة:\n\n";
+    let msg = "📚✨ **قائمة الردود المتعلمة** ✨📚\n\n";
     let i = 1;
-    for (let word in learned) {
-      msg += `${i}. ${word} => ${learned[word]}\n`;
+    for (let w in learned) {
+      msg += `🔹 ${i}) **${w}** → ${learned[w]}\n`;
       i++;
     }
+
+    msg += "\n💠 يمكنك كتابة: كايروس + الكلمة للرد";
+
     return api.sendMessage(msg, event.threadID);
   }
 
-  // حذف - فقط المطور
+  // =======================
+  //        ❌ حذف
+  // =======================
   if (text.startsWith("حذف ")) {
-    if (sender !== devID)
-      return api.sendMessage("❌ الحذف متاح للمطور فقط.", event.threadID);
+    if (!(await isAdmin(api, event.threadID, sender)))
+      return api.sendMessage("❌ هذا الأمر للأدمن فقط.", event.threadID);
 
     const word = text.replace("حذف ", "").trim();
 
     if (!learned[word])
-      return api.sendMessage("❌ الكلمة غير موجودة.", event.threadID);
+      return api.sendMessage("⚠️ الكلمة غير موجودة.", event.threadID);
 
     delete learned[word];
-    save();
-    return api.sendMessage(`✔ تم حذف "${word}"`, event.threadID);
+    saveLearned();
+    return api.sendMessage(`🗑️ تم حذف "${word}" بنجاح.`, event.threadID);
   }
 
-  // تعديل - فقط المطور
+  // =======================
+  //       ✏ تعديل
+  // =======================
   if (text.startsWith("تعديل ")) {
-    if (sender !== devID)
-      return api.sendMessage("❌ التعديل للمطور فقط.", event.threadID);
+    if (!(await isAdmin(api, event.threadID, sender)))
+      return api.sendMessage("❌ هذا الأمر للأدمن فقط.", event.threadID);
 
     const parts = text.replace("تعديل ", "").split("=>");
     if (parts.length !== 2)
-      return api.sendMessage("❌ الصيغة:\nتعديل الكلمة => الرد الجديد", event.threadID);
+      return api.sendMessage("⚠️ الصيغة الصحيحة:\nتعديل الكلمة => الرد الجديد", event.threadID);
 
     const word = parts[0].trim();
     const reply = parts[1].trim();
 
     if (!learned[word])
-      return api.sendMessage("❌ الكلمة غير موجودة.", event.threadID);
+      return api.sendMessage("⚠️ الكلمة غير موجودة.", event.threadID);
 
     learned[word] = reply;
-    save();
-    return api.sendMessage(`✔ تم تعديل "${word}"`, event.threadID);
+    saveLearned();
+    return api.sendMessage(`✏️ تم تعديل الرد للكلمة "${word}".`, event.threadID);
   }
 
-  // التعليم الطبيعي (للجميع)
+  // =======================
+  //       ➕ تعليم كلمة
+  // =======================
   const parts = text.split("=>");
   if (parts.length !== 2)
     return api.sendMessage("❌ الصيغة:\nتعلم الكلمة => الرد", event.threadID);
@@ -96,20 +145,29 @@ module.exports.run = function ({ api, event, args }) {
   const reply = parts[1].trim();
 
   learned[word] = reply;
-  save();
+  saveLearned();
 
-  return api.sendMessage(`✔ تم تعلم الكلمة "${word}"`, event.threadID);
+  return api.sendMessage(`✔️ تم تعلم الكلمة "${word}".`, event.threadID);
 };
 
-// الرد على الرسائل: كايروس الكلمة
+// ===========================
+//       🤖 نظام الردود
+// ===========================
 module.exports.handleEvent = function ({ api, event }) {
   const msg = event.body;
   if (!msg) return;
 
+  // 🔥 وضع كارلوس ON — يرد على أي كلمة متعلمة
+  if (carlos.status === "on") {
+    const w = msg.trim();
+    if (learned[w])
+      return api.sendMessage(learned[w], event.threadID, event.messageID);
+  }
+
+  // الوضع العادي: كايروس + كلمة
   if (msg.startsWith("كايروس ")) {
-    const word = msg.replace("كايروس ", "").trim();
-    if (learned[word]) {
-      return api.sendMessage(learned[word], event.threadID, event.messageID);
-    }
+    const w = msg.replace("كايروس ", "").trim();
+    if (learned[w])
+      return api.sendMessage(learned[w], event.threadID, event.messageID);
   }
 };
