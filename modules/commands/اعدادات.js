@@ -1,8 +1,15 @@
 const fs = require("fs");
 const path = require("path");
+const axios = require("axios");
 
-const protectDir = path.join(__dirname, "../cache/protect/");
+// مجلد الحماية (يعمل على Render + Replit)
+const protectDir = path.join(process.cwd(), "protect");
 if (!fs.existsSync(protectDir)) fs.mkdirSync(protectDir, { recursive: true });
+
+// حماية المصفوفات
+if (!global.client) global.client = {};
+if (!global.client.handleReply) global.client.handleReply = [];
+if (!global.client.handleReaction) global.client.handleReaction = [];
 
 module.exports.config = {
   name: "إعدادات",
@@ -91,8 +98,8 @@ module.exports.handleReply = async ({ api, event, handleReply }) => {
         protectData.protectImage = !protectData.protectImage;
         if (protectData.protectImage) {
           try {
-            const img = await api.httpGetBuffer(threadInfo.imageSrc);
-            protectData.imageBuffer = img.toString("base64");
+            const img = (await axios.get(threadInfo.imageSrc, { responseType: "arraybuffer" })).data;
+            protectData.imageBuffer = Buffer.from(img).toString("base64");
           } catch (e) {}
         }
         changed.push("حماية الصورة");
