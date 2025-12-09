@@ -1,22 +1,48 @@
 module.exports.config = {
     name: "antiout",
     eventType: ["log:unsubscribe"],
-    version: "0.0.1",
-    credits: "DungUwU",
-    description: "Listen events"
+    version: "1.0.2",
+    credits: "محمد إدريس (تعديل)",
+    description: "إرجاع العضو عند خروجه أو الكشف عن الطرد"
 };
 
 module.exports.run = async({ event, api, Threads, Users }) => {
     let data = (await Threads.getData(event.threadID)).data || {};
     if (!data.antiout) return;
-    if (event.logMessageData.leftParticipantFbId == api.getCurrentUserID()) return;
-    const name = global.data.userName.get(event.logMessageData.leftParticipantFbId) || await Users.getNameUser(event.logMessageData.leftParticipantFbId);
-    const type = (event.author == event.logMessageData.leftParticipantFbId) ? "tự rời" : "bị quản trị viên đuổi";
-    if (type == "tự rời") {
-        api.addUserToGroup(event.logMessageData.leftParticipantFbId, event.threadID, (error, info) => {
-            if (error) {
-                api.sendMessage(`[ANTIOUT] 𝐊𝐡𝐨̂𝐧𝐠 𝐭𝐡𝐞̂̉ 𝐦𝐨̛̀𝐢 ${name} 𝐯𝐚̀𝐨 𝐥𝐚̣𝐢 𝐧𝐡𝐨́𝐦 `, event.threadID)
-            } else api.sendMessage(`[ANTIOUT] 𝐃𝐚̃ 𝐦𝐨̛̀𝐢 ${name} 𝐯𝐚̀𝐨 𝐥𝐚̣𝐢 𝐧𝐡𝐨́𝐦`, event.threadID);
-        })
+
+    const leftID = event.logMessageData.leftParticipantFbId;
+
+    // تجاهل لو البوت هو اللي خرج
+    if (leftID == api.getCurrentUserID()) return;
+
+    // جلب اسم العضو
+    const name = global.data.userName.get(leftID) || await Users.getNameUser(leftID);
+
+    // تحديد الطريقة: خروج ذاتي أم طرد
+    const type = (event.author == leftID) ? "self" : "kicked";
+
+    // 🟢 إذا العضو خرج من نفسه
+    if (type === "self") {
+        api.addUserToGroup(leftID, event.threadID, (err) => {
+            if (err) {
+                api.sendMessage(
+                    `🐸☝🏿 العب اغبى من انو ينضاف تاني`,
+                    event.threadID
+                );
+            } else {
+                api.sendMessage(
+                    `🐸☝🏿 الحق العب قال مارق بي كرامتو`,
+                    event.threadID
+                );
+            }
+        });
     }
-}
+
+    // 🔴 إذا الأدمن طرده
+    else if (type === "kicked") {
+        api.sendMessage(
+            `ԅ(¯﹃¯ԅ) بلع بان في جلحتو`,
+            event.threadID
+        );
+    }
+};
