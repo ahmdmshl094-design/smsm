@@ -59,15 +59,15 @@ module.exports.run = async function({ api, event, args, getText }) {
 
     for (let cat in categories) {
       const cmds = categories[cat].sort();
-      let block = `╭── 🍁 ${categoryMap[cat] || cat} 🍁 ──╮\n`;
+      let block = `╭───〔  ${categoryMap[cat] || cat} 〕───╮\n`;
 
       for (let i = 0; i < cmds.length; i += 5) {
-        const row = cmds.slice(i, i + 5).join(" | ");
+        const row = cmds.slice(i, i + 5).join(" │ ");
         block += `│ ${row}\n`;
-        count += row.split("|").length;
+        count += row.split("│").length;
       }
 
-      block += `╰────────────╯`;
+      block += `╰─────────────────────╯`;
       blocks.push(block);
     }
 
@@ -82,16 +82,18 @@ module.exports.run = async function({ api, event, args, getText }) {
     const finalBlocks = blocks.slice(start, start + perPage).join("\n\n");
 
     const msg = `
-『🦋ᏒᎥፚᏋᏁ 🕸』
-── قائمة الأوامر ──
+╭───〔  كايـࢪوس ⚡ قائمة الأوامر 〕───╮
 
 ${finalBlocks}
 
-📄 الصفحة: ${page}/${totalPages}
-📦 عدد الأوامر: ${count}
-💡 استخدم: ${prefix}help [اسم الأمر]
+📌 المجموع: ${count} أمر
+💡 استخدم ${prefix}help [اسم الأمر] لعرض التفاصيل.
 
-${page === 1 ? "اللهم صلِّ وسلم على سيدنا محمد 🤍" : ""}
+⇨ البوت: كايـࢪوس
+⇨ المطور: ڪولو
+
+${page === 1 ? "🌸 استغفر الله العظيم وأتوب إليه\n🤍 اللهم صل وسلم على نبينا محمد ﷺ" : ""}
+╰─────────────────────╯
 `;
 
     return api.sendMessage(
