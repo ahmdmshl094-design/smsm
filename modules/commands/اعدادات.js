@@ -1,186 +1,136 @@
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
 
-// مجلد الحماية (يعمل على Render + Replit)
-const protectDir = path.join(process.cwd(), "protect");
-if (!fs.existsSync(protectDir)) fs.mkdirSync(protectDir, { recursive: true });
+const dataFile = path.join(__dirname, "groupProtection.json");
 
-// حماية المصفوفات
-if (!global.client) global.client = {};
-if (!global.client.handleReply) global.client.handleReply = [];
-if (!global.client.handleReaction) global.client.handleReaction = [];
+function loadData() {
+  if (!fs.existsSync(dataFile)) fs.writeFileSync(dataFile, "{}");
+  try {
+    return JSON.parse(fs.readFileSync(dataFile));
+  } catch {
+    return {};
+  }
+}
+
+function saveData(data) {
+  fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+}
 
 module.exports.config = {
-  name: "إعدادات",
-  version: "5.0",
-  credits: "محمد إدريس + GPT",
-  description: "نظام حماية متوافق مع dongdev/fca-unofficial",
-  role: 1
+  name: "اعدادات",
+  version: "1.0.3",
+  hasPermssion: 1,
+  credits: "مطور",
+  description: "إعدادات حماية المجموعة",
+  commandCategory: "إدارة",
+  usages: "اعدادات",
+  cooldowns: 5
 };
 
-// جلب بيانات الحماية
-function getProtectData(threadID) {
-  const filePath = path.join(protectDir, `${threadID}.json`);
-  if (fs.existsSync(filePath)) return JSON.parse(fs.readFileSync(filePath));
-  return {
-    active: false,
-    protectName: false,
-    protectImage: false,
-    protectNick: false,
-    name: "",
-    nicknames: {},
-    imageBuffer: null
-  };
-}
+module.exports.run = async function ({ api, event }) {
+  const { threadID, messageID, senderID } = event;
 
-// حفظ البيانات
-function saveProtectData(threadID, data) {
-  const filePath = path.join(protectDir, `${threadID}.json`);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-}
+  // تحقق من كون الشخص أدمن في المجموعة
+  try {
+    const threadInfo = await api.getThreadInfo(threadID);
+    const admins = threadInfo.adminIDs.map(a => a.id);
 
-module.exports.run = async ({ api, event }) => {
-  const threadID = event.threadID;
-  const senderID = event.senderID;
+    if (!admins.includes(senderID)) return; // تجاهل إذا ليس أدمن
+  } catch {
+    return;
+  }
 
-  const thread = await api.getThreadInfo(threadID);
-  const isAdmin = thread.adminIDs.some(e => e.id == senderID);
+  const data = loadData();
 
-  if (!isAdmin)
-    return api.sendMessage("❌ هذا الأمر للأدمن فقط.", threadID, event.messageID);
+  if (!data[threadID]) {
+    data[threadID] = {
+      enabled: false,
+      name: "",
+      image: "",
+      nicknames: {},
+      antiNickname: false,
+      antiLeave: false,
+      antiName: false,
+      antiImage: false
+    };
+    saveData(data);
+  }
 
-  const protectData = getProtectData(threadID);
-  const status = (x) => (x ? "✅" : "❌");
+  const s = data[threadID];
 
+  // ✨ قائمة أنيقة مع رموز البداية [❌]
   const msg = `
-╭───『 ⚙️ إعدادات الحماية 』───╮
-│ 1️⃣ حماية الاسم: ${status(protectData.protectName)}
-│ 2️⃣ حماية الصورة: ${status(protectData.protectImage)}
-│ 3️⃣ حماية الكنيات: ${status(protectData.protectNick)}
-│ 4️⃣ تشغيل/إيقاف النظام: ${status(protectData.active)}
-╰────────────────────────╯
-💬 *أرسل أرقامًا لتعديل الإعدادات. ثم اضغط 👍 للحفظ.*
-`;
+🌟⚙️ 𝐆𝐫𝐨𝐮𝐩 𝐏𝐫𝐨𝐭𝐞𝐜𝐭𝐢𝐨𝐧 ⚙️🌟
+━━━━━━━━━━━━━━━━━━━━━━━
 
-  const sent = await api.sendMessage(msg, threadID);
+1️⃣  • منع تغيير الكنيات      : ${s.antiNickname ? "[✅] مفعل" : "[❌] معطل"}
+2️⃣  • منع المغادرة           : ${s.antiLeave ? "[✅] مفعل" : "[❌] معطل"}
+3️⃣  • منع تغيير اسم المجموعة : ${s.antiName ? "[✅] مفعل" : "[❌] معطل"}
+4️⃣  • منع تغيير صورة المجموعة : ${s.antiImage ? "[✅] مفعل" : "[❌] معطل"}
 
-  global.client.handleReply.push({
-    name: module.exports.config.name,
-    author: senderID,
-    messageID: sent.messageID,
-    type: "menu",
-    data: protectData
-  });
+━━━━━━━━━━━━━━━━━━━━━━━
+📌 *قم بالرد على الرقم لتفعيل أو تعطيل الإعداد.*`;
+
+  api.sendMessage(msg, threadID, (err, info) => {
+    if (!err) {
+      global.client.handleReply.push({
+        name: module.exports.config.name,
+        author: senderID,
+        messageID: info.messageID,
+        type: "settings"
+      });
+    }
+  }, messageID);
 };
 
-module.exports.handleReply = async ({ api, event, handleReply }) => {
-  if (event.senderID !== handleReply.author) return;
+module.exports.handleReply = async function ({ api, event, handleReply }) {
+  const { threadID, messageID, senderID, body } = event;
 
-  const threadID = event.threadID;
-  const threadInfo = await api.getThreadInfo(threadID);
-  const protectData = handleReply.data;
+  if (senderID !== handleReply.author) return;
 
-  const choices = event.body.match(/\d+/g)?.map(Number) || [];
-  if (!choices.length) return;
+  const choice = parseInt(body.trim());
+  if (![1, 2, 3, 4].includes(choice)) return;
 
-  let changed = [];
+  const data = loadData();
+  if (!data[threadID]) return;
 
-  for (const num of choices) {
-    switch (num) {
-      case 1:
-        protectData.protectName = !protectData.protectName;
-        if (protectData.protectName) protectData.name = threadInfo.threadName;
-        changed.push("حماية الاسم");
-        break;
+  let key = "", name = "";
 
-      case 2:
-        protectData.protectImage = !protectData.protectImage;
-        if (protectData.protectImage) {
-          try {
-            const img = (await axios.get(threadInfo.imageSrc, { responseType: "arraybuffer" })).data;
-            protectData.imageBuffer = Buffer.from(img).toString("base64");
-          } catch (e) {}
-        }
-        changed.push("حماية الصورة");
-        break;
+  switch (choice) {
+    case 1: key = "antiNickname"; name = "منع تغيير الكنيات"; break;
+    case 2: key = "antiLeave"; name = "منع المغادرة"; break;
+    case 3: key = "antiName"; name = "منع تغيير اسم المجموعة"; break;
+    case 4: key = "antiImage"; name = "منع تغيير صورة المجموعة"; break;
+  }
 
-      case 3:
-        protectData.protectNick = !protectData.protectNick;
-        if (protectData.protectNick) {
-          threadInfo.participantIDs.forEach(uid => {
-            protectData.nicknames[uid] = threadInfo.nicknames?.[uid] || "";
-          });
-        }
-        changed.push("حماية الكنيات");
-        break;
+  data[threadID][key] = !data[threadID][key];
+  saveData(data);
 
-      case 4:
-        protectData.active = !protectData.active;
-        changed.push("تشغيل/إيقاف النظام");
-        break;
+  let msg = `${data[threadID][key] ? "[✅] تم تفعيل" : "[❌] تم تعطيل"} ${name}`;
+
+  // إعادة الاسم أو الصورة أو الكنيات عند التفعيل
+  try {
+    const threadInfo = await api.getThreadInfo(threadID);
+
+    if (key === "antiNickname") {
+      const changedNicknames = threadInfo.approvalMode ? {} : threadInfo.nicknames || {};
+      data[threadID].nicknames = changedNicknames;
+      saveData(data);
+      msg += `\n🔄 تم إعادة الكنيات الأصلية للأعضاء.`;
     }
-  }
-
-  const sent = await api.sendMessage(
-    `⚡ تم تعديل:\n- ${changed.join("\n- ")}\nاضغط 👍 لحفظ.`,
-    threadID
-  );
-
-  global.client.handleReaction.push({
-    name: module.exports.config.name,
-    author: event.senderID,
-    messageID: sent.messageID,
-    data: protectData
-  });
-};
-
-module.exports.handleReaction = async ({ api, event, handleReaction }) => {
-  if (event.userID !== handleReaction.author) return;
-  if (event.reaction !== "👍") return;
-
-  saveProtectData(event.threadID, handleReaction.data);
-
-  api.sendMessage("✅ تم حفظ الإعدادات بنجاح.", event.threadID);
-};
-
-// الأحداث التلقائية
-module.exports.onEvent = async ({ api, event }) => {
-  const threadID = event.threadID;
-  const protectData = getProtectData(threadID);
-
-  if (!protectData.active) return;
-
-  // حماية الاسم
-  if (event.logMessageType === "log:thread-name" && protectData.protectName) {
-    const newName = event.logMessageData.name;
-    if (newName !== protectData.name) {
-      api.setTitle(protectData.name, threadID);
-      api.sendMessage("🛡️ تمت إعادة اسم الجروب.", threadID);
+    if (key === "antiName") {
+      data[threadID].name = threadInfo.name;
+      saveData(data);
+      msg += `\n🔄 تم إعادة اسم المجموعة الأصلي.`;
     }
-  }
-
-  // حماية الصورة
-  if (
-    event.logMessageType === "log:thread-icon" &&
-    protectData.protectImage &&
-    protectData.imageBuffer
-  ) {
-    try {
-      const buffer = Buffer.from(protectData.imageBuffer, "base64");
-      api.changeGroupImage(buffer, threadID);
-      api.sendMessage("🖼️ تمت إعادة صورة الجروب.", threadID);
-    } catch (e) {}
-  }
-
-  // حماية الكنيات
-  if (event.logMessageType === "log:user-nickname" && protectData.protectNick) {
-    const uid = event.logMessageData.participant_id;
-    const original = protectData.nicknames[uid];
-
-    if (original && event.logMessageData.nickname !== original) {
-      api.changeNickname(original, threadID, uid);
-      api.sendMessage("👤 تمت إعادة الكنية الأصلية.", threadID);
+    if (key === "antiImage") {
+      data[threadID].image = threadInfo.imageSrc || "";
+      saveData(data);
+      msg += `\n🔄 تم إعادة صورة المجموعة الأصلية.`;
     }
+  } catch(e) {
+    console.log("خطأ في إعادة البيانات:", e);
   }
+
+  return api.sendMessage(msg, threadID, messageID);
 };
