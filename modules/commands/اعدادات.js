@@ -18,7 +18,7 @@ function saveData(data) {
 
 module.exports.config = {
   name: "اعدادات",
-  version: "1.0.3",
+  version: "1.0.6",
   hasPermssion: 1,
   credits: "مطور",
   description: "إعدادات حماية المجموعة",
@@ -30,18 +30,15 @@ module.exports.config = {
 module.exports.run = async function ({ api, event }) {
   const { threadID, messageID, senderID } = event;
 
-  // تحقق من كون الشخص أدمن في المجموعة
   try {
     const threadInfo = await api.getThreadInfo(threadID);
     const admins = threadInfo.adminIDs.map(a => a.id);
-
     if (!admins.includes(senderID)) return; // تجاهل إذا ليس أدمن
   } catch {
     return;
   }
 
   const data = loadData();
-
   if (!data[threadID]) {
     data[threadID] = {
       enabled: false,
@@ -58,18 +55,20 @@ module.exports.run = async function ({ api, event }) {
 
   const s = data[threadID];
 
-  // ✨ قائمة أنيقة مع رموز البداية [❌]
+  // جميع الإعدادات تبدأ [❌] إذا لم يتم تفعيلها
   const msg = `
-🌟⚙️ 𝐆𝐫𝐨𝐮𝐩 𝐏𝐫𝐨𝐭𝐞𝐜𝐭𝐢𝐨𝐧 ⚙️🌟
+💠⚙️ 𝐆𝐫𝐨𝐮𝐩 𝐏𝐫𝐨𝐭𝐞𝐜𝐭𝐢𝐨𝐧 ⚙️💠
 ━━━━━━━━━━━━━━━━━━━━━━━
 
-1️⃣  • منع تغيير الكنيات      : ${s.antiNickname ? "[✅] مفعل" : "[❌] معطل"}
-2️⃣  • منع المغادرة           : ${s.antiLeave ? "[✅] مفعل" : "[❌] معطل"}
-3️⃣  • منع تغيير اسم المجموعة : ${s.antiName ? "[✅] مفعل" : "[❌] معطل"}
-4️⃣  • منع تغيير صورة المجموعة : ${s.antiImage ? "[✅] مفعل" : "[❌] معطل"}
+1️⃣ • منع تغيير الكنيات       : ${s.antiNickname ? "[✅] مفعل" : "[❌] معطل"}
+2️⃣ • منع المغادرة            : ${s.antiLeave ? "[✅] مفعل" : "[❌] معطل"}
+3️⃣ • منع تغيير اسم المجموعة  : ${s.antiName ? "[✅] مفعل" : "[❌] معطل"}
+4️⃣ • منع تغيير صورة المجموعة : ${s.antiImage ? "[✅] مفعل" : "[❌] معطل"}
 
 ━━━━━━━━━━━━━━━━━━━━━━━
-📌 *قم بالرد على الرقم لتفعيل أو تعطيل الإعداد.*`;
+📌 *قم بالرد بالأرقام لفصلها بمسافة لتفعيل/تعطيل أكثر من خيار.*
+📌 *بعد الاختيار، تفاعل ب 👍 لحفظ الإعدادات الجديدة.*
+`;
 
   api.sendMessage(msg, threadID, (err, info) => {
     if (!err) {
@@ -88,49 +87,93 @@ module.exports.handleReply = async function ({ api, event, handleReply }) {
 
   if (senderID !== handleReply.author) return;
 
-  const choice = parseInt(body.trim());
-  if (![1, 2, 3, 4].includes(choice)) return;
+  const choices = body.trim().split(/\s+/).map(x => parseInt(x)).filter(x => [1,2,3,4].includes(x));
+  if (choices.length === 0) return;
 
   const data = loadData();
   if (!data[threadID]) return;
 
-  let key = "", name = "";
+  const threadInfo = await api.getThreadInfo(threadID);
 
-  switch (choice) {
-    case 1: key = "antiNickname"; name = "منع تغيير الكنيات"; break;
-    case 2: key = "antiLeave"; name = "منع المغادرة"; break;
-    case 3: key = "antiName"; name = "منع تغيير اسم المجموعة"; break;
-    case 4: key = "antiImage"; name = "منع تغيير صورة المجموعة"; break;
+  let msg = "🔄 تم تحديث الإعدادات:\n";
+
+  for (let choice of choices) {
+    let key = "", name = "";
+    switch (choice) {
+      case 1: key = "antiNickname"; name = "منع تغيير الكنيات"; break;
+      case 2: key = "antiLeave"; name = "منع المغادرة"; break;
+      case 3: key = "antiName"; name = "منع تغيير اسم المجموعة"; break;
+      case 4: key = "antiImage"; name = "منع تغيير صورة المجموعة"; break;
+    }
+    data[threadID][key] = !data[threadID][key];
+
+    if (key === "antiNickname" && data[threadID][key]) {
+      data[threadID].nicknames = threadInfo.nicknames || {};
+    }
+    if (key === "antiName" && data[threadID][key]) {
+      data[threadID].name = threadInfo.name;
+    }
+    if (key === "antiImage" && data[threadID][key]) {
+      data[threadID].image = threadInfo.imageSrc || "";
+    }
+
+    msg += `${data[threadID][key] ? "[✅]" : "[❌]"} ${name}\n`;
   }
 
-  data[threadID][key] = !data[threadID][key];
   saveData(data);
 
-  let msg = `${data[threadID][key] ? "[✅] تم تفعيل" : "[❌] تم تعطيل"} ${name}`;
+  msg += "\n👍 تفاعل لحفظ الإعدادات الجديدة.";
 
-  // إعادة الاسم أو الصورة أو الكنيات عند التفعيل
-  try {
-    const threadInfo = await api.getThreadInfo(threadID);
+  api.sendMessage(msg, threadID, messageID);
+};
 
-    if (key === "antiNickname") {
-      const changedNicknames = threadInfo.approvalMode ? {} : threadInfo.nicknames || {};
-      data[threadID].nicknames = changedNicknames;
-      saveData(data);
-      msg += `\n🔄 تم إعادة الكنيات الأصلية للأعضاء.`;
+// حماية الكنيات عند التغيير
+module.exports.onNicknameChange = async function({ api, event }) {
+  const { threadID, author, nickname } = event;
+  const data = loadData();
+  if (!data[threadID]?.antiNickname) return;
+
+  const originalNick = data[threadID].nicknames?.[author];
+  if (originalNick && nickname !== originalNick) {
+    try {
+      await api.changeNickname(originalNick, threadID, author);
+      api.sendMessage(`افطر انا قاعد م بخليك تلعب 🐸☝🏿`, threadID);
+    } catch(e) {
+      console.log("خطأ في إعادة الكنية:", e);
     }
-    if (key === "antiName") {
-      data[threadID].name = threadInfo.name;
-      saveData(data);
-      msg += `\n🔄 تم إعادة اسم المجموعة الأصلي.`;
-    }
-    if (key === "antiImage") {
-      data[threadID].image = threadInfo.imageSrc || "";
-      saveData(data);
-      msg += `\n🔄 تم إعادة صورة المجموعة الأصلية.`;
-    }
-  } catch(e) {
-    console.log("خطأ في إعادة البيانات:", e);
   }
+};
 
-  return api.sendMessage(msg, threadID, messageID);
+// حماية الاسم عند تغييره
+module.exports.onNameChange = async function({ api, event }) {
+  const { threadID, name } = event;
+  const data = loadData();
+  if (!data[threadID]?.antiName) return;
+
+  const originalName = data[threadID].name;
+  if (originalName && name !== originalName) {
+    try {
+      await api.setTitle(originalName, threadID);
+      api.sendMessage(`افطر انا قاعد م بخليك تلعب 🐸☝🏿`, threadID);
+    } catch(e) {
+      console.log("خطأ في إعادة الاسم:", e);
+    }
+  }
+};
+
+// حماية الصورة عند تغييرها
+module.exports.onImageChange = async function({ api, event }) {
+  const { threadID, imageSrc } = event;
+  const data = loadData();
+  if (!data[threadID]?.antiImage) return;
+
+  const originalImage = data[threadID].image;
+  if (originalImage && imageSrc !== originalImage) {
+    try {
+      await api.setImage(originalImage, threadID);
+      api.sendMessage(`افطر انا قاعد م بخليك تلعب 🐸☝🏿`, threadID);
+    } catch(e) {
+      console.log("خطأ في إعادة الصورة:", e);
+    }
+  }
 };
