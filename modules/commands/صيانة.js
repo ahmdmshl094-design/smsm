@@ -31,7 +31,8 @@ module.exports.handleEvent = function ({ event }) {
 
         // السماح فقط للمطور
         if (String(event.senderID) !== data.developer) {
-            return; // تجاهل الرسالة بالكامل
+            // تجاهل أي رسالة من أي شخص آخر في أي مجموعة
+            return true; // إيقاف أي تنفيذ للأوامر الأخرى
         }
 
     } catch (e) {
