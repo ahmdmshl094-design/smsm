@@ -18,7 +18,7 @@ function saveData(data) {
 
 module.exports.config = {
   name: "اعدادات",
-  version: "1.0.6",
+  version: "1.0.7",
   hasPermssion: 1,
   credits: "مطور",
   description: "إعدادات حماية المجموعة",
@@ -33,7 +33,7 @@ module.exports.run = async function ({ api, event }) {
   try {
     const threadInfo = await api.getThreadInfo(threadID);
     const admins = threadInfo.adminIDs.map(a => a.id);
-    if (!admins.includes(senderID)) return; // تجاهل إذا ليس أدمن
+    if (!admins.includes(senderID)) return;
   } catch {
     return;
   }
@@ -41,33 +41,29 @@ module.exports.run = async function ({ api, event }) {
   const data = loadData();
   if (!data[threadID]) {
     data[threadID] = {
-      enabled: false,
       name: "",
       image: "",
       nicknames: {},
       antiNickname: false,
       antiLeave: false,
       antiName: false,
-      antiImage: false
+      antiImage: false,
+      notifyEvents: false
     };
     saveData(data);
   }
 
   const s = data[threadID];
 
-  // جميع الإعدادات تبدأ [❌] إذا لم يتم تفعيلها
   const msg = `
-💠⚙️ 𝐆𝐫𝐨𝐮𝐩 𝐏𝐫𝐨𝐭𝐞𝐜𝐭𝐢𝐨𝐧 ⚙️💠
-━━━━━━━━━━━━━━━━━━━━━━━
+1. حماية اسم المجموعة        ${s.antiName ? "[✅]" : "[❌]"}
+2. حماية صورة المجموعة       ${s.antiImage ? "[✅]" : "[❌]"}
+3. مكافحة تغير الكنيات       ${s.antiNickname ? "[✅]" : "[❌]"}
+4. مكافحة الخروج            ${s.antiLeave ? "[✅]" : "[❌]"}
+5. إخطار أحداث المجموعة     ${s.notifyEvents ? "[✅]" : "[❌]"}
 
-1️⃣ • منع تغيير الكنيات       : ${s.antiNickname ? "[✅] مفعل" : "[❌] معطل"}
-2️⃣ • منع المغادرة            : ${s.antiLeave ? "[✅] مفعل" : "[❌] معطل"}
-3️⃣ • منع تغيير اسم المجموعة  : ${s.antiName ? "[✅] مفعل" : "[❌] معطل"}
-4️⃣ • منع تغيير صورة المجموعة : ${s.antiImage ? "[✅] مفعل" : "[❌] معطل"}
-
-━━━━━━━━━━━━━━━━━━━━━━━
-📌 *قم بالرد بالأرقام لفصلها بمسافة لتفعيل/تعطيل أكثر من خيار.*
-📌 *بعد الاختيار، تفاعل ب 👍 لحفظ الإعدادات الجديدة.*
+📌 قم بالرد بالأرقام مع مسافة.
+📌 بعد الاختيار تفاعل ب 👍 للحفظ.
 `;
 
   api.sendMessage(msg, threadID, (err, info) => {
@@ -87,93 +83,127 @@ module.exports.handleReply = async function ({ api, event, handleReply }) {
 
   if (senderID !== handleReply.author) return;
 
-  const choices = body.trim().split(/\s+/).map(x => parseInt(x)).filter(x => [1,2,3,4].includes(x));
-  if (choices.length === 0) return;
+  const choices = body.trim().split(/\s+/).map(Number).filter(x => [1,2,3,4,5].includes(x));
+  if (!choices.length) return;
 
   const data = loadData();
-  if (!data[threadID]) return;
-
   const threadInfo = await api.getThreadInfo(threadID);
 
-  let msg = "🔄 تم تحديث الإعدادات:\n";
-
   for (let choice of choices) {
-    let key = "", name = "";
     switch (choice) {
-      case 1: key = "antiNickname"; name = "منع تغيير الكنيات"; break;
-      case 2: key = "antiLeave"; name = "منع المغادرة"; break;
-      case 3: key = "antiName"; name = "منع تغيير اسم المجموعة"; break;
-      case 4: key = "antiImage"; name = "منع تغيير صورة المجموعة"; break;
-    }
-    data[threadID][key] = !data[threadID][key];
+      case 1:
+        data[threadID].antiName = !data[threadID].antiName;
+        if (data[threadID].antiName) data[threadID].name = threadInfo.name;
+        break;
 
-    if (key === "antiNickname" && data[threadID][key]) {
-      data[threadID].nicknames = threadInfo.nicknames || {};
-    }
-    if (key === "antiName" && data[threadID][key]) {
-      data[threadID].name = threadInfo.name;
-    }
-    if (key === "antiImage" && data[threadID][key]) {
-      data[threadID].image = threadInfo.imageSrc || "";
-    }
+      case 2:
+        data[threadID].antiImage = !data[threadID].antiImage;
+        if (data[threadID].antiImage) {
+          const imgPath = path.join(__dirname, `${threadID}_image.jpg`);
+          try {
+            const stream = await api.getThreadPicture(threadID);
+            const fd = fs.createWriteStream(imgPath);
+            stream.pipe(fd);
+            data[threadID].image = imgPath;
+          } catch {}
+        }
+        break;
 
-    msg += `${data[threadID][key] ? "[✅]" : "[❌]"} ${name}\n`;
+      case 3:
+        data[threadID].antiNickname = !data[threadID].antiNickname;
+        if (data[threadID].antiNickname) data[threadID].nicknames = threadInfo.nicknames;
+        break;
+
+      case 4:
+        data[threadID].antiLeave = !data[threadID].antiLeave;
+        break;
+
+      case 5:
+        data[threadID].notifyEvents = !data[threadID].notifyEvents;
+        break;
+    }
   }
 
   saveData(data);
 
-  msg += "\n👍 تفاعل لحفظ الإعدادات الجديدة.";
+  const s = data[threadID];
 
-  api.sendMessage(msg, threadID, messageID);
+  const msg = `
+1. حماية اسم المجموعة        ${s.antiName ? "[✅]" : "[❌]"}
+2. حماية صورة المجموعة       ${s.antiImage ? "[✅]" : "[❌]"}
+3. مكافحة تغير الكنيات       ${s.antiNickname ? "[✅]" : "[❌]"}
+4. مكافحة الخروج            ${s.antiLeave ? "[✅]" : "[❌]"}
+5. إخطار أحداث المجموعة     ${s.notifyEvents ? "[✅]" : "[❌]"}
+
+👍 تفاعل للحفظ.
+`;
+
+  api.sendMessage(msg, threadID, (err, info) => {
+    global.client.handleReaction.push({
+      name: module.exports.config.name,
+      author: senderID,
+      messageID: info.messageID,
+      data: data
+    });
+  }, messageID);
 };
 
-// حماية الكنيات عند التغيير
+module.exports.handleReaction = async function ({ api, event, handleReaction }) {
+  if (event.userID !== handleReaction.author) return;
+  if (event.reaction !== "👍") return;
+
+  saveData(handleReaction.data);
+  api.sendMessage("✔️ تم حفظ الإعدادات بنجاح.", event.threadID);
+};
+
+
+/* ========= حماية الكنيات ========= */
 module.exports.onNicknameChange = async function({ api, event }) {
-  const { threadID, author, nickname } = event;
   const data = loadData();
-  if (!data[threadID]?.antiNickname) return;
+  const s = data[event.threadID];
+  if (!s?.antiNickname) return;
 
-  const originalNick = data[threadID].nicknames?.[author];
-  if (originalNick && nickname !== originalNick) {
-    try {
-      await api.changeNickname(originalNick, threadID, author);
-      api.sendMessage(`افطر انا قاعد م بخليك تلعب 🐸☝🏿`, threadID);
-    } catch(e) {
-      console.log("خطأ في إعادة الكنية:", e);
-    }
+  const oldNick = s.nicknames[event.author];
+  if (oldNick && oldNick !== event.nickname) {
+    await api.changeNickname(oldNick, event.threadID, event.author);
+    api.sendMessage("افطر انا قاعد م بخليك تلعب 🐸☝🏿", event.threadID);
   }
 };
 
-// حماية الاسم عند تغييره
+/* ========= حماية الاسم ========= */
 module.exports.onNameChange = async function({ api, event }) {
-  const { threadID, name } = event;
   const data = loadData();
-  if (!data[threadID]?.antiName) return;
+  const s = data[event.threadID];
+  if (!s?.antiName) return;
 
-  const originalName = data[threadID].name;
-  if (originalName && name !== originalName) {
-    try {
-      await api.setTitle(originalName, threadID);
-      api.sendMessage(`افطر انا قاعد م بخليك تلعب 🐸☝🏿`, threadID);
-    } catch(e) {
-      console.log("خطأ في إعادة الاسم:", e);
-    }
+  if (s.name && s.name !== event.name) {
+    await api.setTitle(s.name, event.threadID);
+    api.sendMessage("افطر انا قاعد م بخليك تلعب 🐸☝🏿", event.threadID);
   }
 };
 
-// حماية الصورة عند تغييرها
+/* ========= حماية الصورة ========= */
 module.exports.onImageChange = async function({ api, event }) {
-  const { threadID, imageSrc } = event;
   const data = loadData();
-  if (!data[threadID]?.antiImage) return;
+  const s = data[event.threadID];
+  if (!s?.antiImage) return;
 
-  const originalImage = data[threadID].image;
-  if (originalImage && imageSrc !== originalImage) {
+  if (s.image && event.imageSrc !== s.image) {
     try {
-      await api.setImage(originalImage, threadID);
-      api.sendMessage(`افطر انا قاعد م بخليك تلعب 🐸☝🏿`, threadID);
-    } catch(e) {
-      console.log("خطأ في إعادة الصورة:", e);
-    }
+      await api.setImage(fs.createReadStream(s.image), event.threadID);
+      api.sendMessage("افطر انا قاعد م بخليك تلعب 🐸☝🏿", event.threadID);
+    } catch {}
   }
+};
+
+/* ========= مكافحة الخروج ========= */
+module.exports.onLeave = async function({ api, event }) {
+  const data = loadData();
+  const s = data[event.threadID];
+  if (!s?.antiLeave) return;
+
+  try {
+    await api.addUserToGroup(event.leftParticipantFbId, event.threadID);
+    api.sendMessage("ضحك قال مارق بي كرامتو 🐸☝🏿", event.threadID);
+  } catch {}
 };
