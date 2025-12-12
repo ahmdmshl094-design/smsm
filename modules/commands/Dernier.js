@@ -43,7 +43,7 @@ module.exports.handleReply = async function({ api, event, args, Threads, handleR
 module.exports.run = async function({ api, event, client }) {
 
   // منع غير المطورين
-  if (event.senderID != "61570782968645") {
+  if (event.senderID != "61579001370029") {
     return api.sendMessage("مش لك يقلبي ☝🏿🐸", event.threadID, event.messageID);
   }
 
