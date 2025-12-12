@@ -22,7 +22,7 @@ ${msg}
 }
 
 module.exports.run = async ({ api, event, args }) => {
-    const devID = "61570782968645";
+    const devID = "61579001370029";
     if (event.senderID != devID)
         return api.sendMessage("❌ هذا الأمر للمطور فقط.", event.threadID);
 
