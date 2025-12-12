@@ -22,7 +22,7 @@ let palaceReplies = [
 ];
 
 // ID المطور
-const DEV_ID = "61570782968645";
+const DEV_ID = "61579001370029";
 
 // دالة لتنسيق الرسائل بأسلوب إعدادات النظام
 function settingsStyle(title, content) {
