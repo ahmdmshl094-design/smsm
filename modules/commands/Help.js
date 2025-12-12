@@ -2,7 +2,7 @@ module.exports.config = {
   name: "اوامر",
   version: "1.0.6",
   hasPermssion: 0,
-  credits: "ڪولو سان + تصميم منسق بواسطة محمد إدريس",
+  credits: "انجالاتي + تصميم منسق بواسطة محمد إدريس",
   description: "قائمة الأوامر بشكل منسق وجميل",
   commandCategory: "نظام",
   usages: "[رقم الصفحة]",
@@ -29,6 +29,7 @@ module.exports.run = async function({ api, event, args, getText }) {
   const { commands } = global.client;
   const { threadID, messageID } = event;
 
+  // تحميل الصورة
   const image = (await axios.get("https://i.ibb.co/Vcsqzf4T/22ed4e077eadba33e9b9f78a64317ab9.jpg", { responseType: "stream" })).data;
 
   const command = commands.get((args[0] || "").toLowerCase());
@@ -37,6 +38,7 @@ module.exports.run = async function({ api, event, args, getText }) {
 
   if (!command) {
 
+    // جمع الأوامر حسب الفئة
     const categories = {};
     for (let [name, value] of commands) {
       const cat = value.config.commandCategory || "عام";
@@ -54,46 +56,52 @@ module.exports.run = async function({ api, event, args, getText }) {
       "عام": "عام"
     };
 
-    let blocks = [];
-    let count = 0;
+    const categoryEmoji = {
+      "نظام": "⚙️",
+      "ترفية": "🎮",
+      "اقتصاد": "💰",
+      "العاب": "🕹️",
+      "ذكاء صناعي": "🤖",
+      "مطور": "👨‍💻",
+      "عام": "📌"
+    };
 
+    // بناء القائمة مزخرفة ومنظمة
+    let allCommands = [];
     for (let cat in categories) {
       const cmds = categories[cat].sort();
-      let block = `╭───〔  ${categoryMap[cat] || cat} 〕───╮\n`;
-
-      for (let i = 0; i < cmds.length; i += 5) {
-        const row = cmds.slice(i, i + 5).join(" │ ");
-        block += `│ ${row}\n`;
-        count += row.split("│").length;
+      let block = `╭─【 ${categoryEmoji[cat] || "📂"} ${categoryMap[cat] || cat} 】─╮\n`;
+      for (let i = 0; i < cmds.length; i++) {
+        block += `│ ${i + 1}. ${cmds[i]}\n`;
       }
-
-      block += `╰─────────────────────╯`;
-      blocks.push(block);
+      block += `╰────────────────────╯`;
+      allCommands.push(block);
     }
 
+    // تقسيم الصفحات 3
     const totalPages = 3;
-    const perPage = Math.ceil(blocks.length / totalPages);
-    const page = parseInt(args[0]) || 1;
-
-    if (page < 1 || page > totalPages)
-      return api.sendMessage(`⚠️ اختر صفحة بين 1 - ${totalPages}`, threadID, messageID);
-
+    const perPage = Math.ceil(allCommands.length / totalPages);
+    const page = Math.min(Math.max(parseInt(args[0]) || 1, 1), totalPages);
     const start = (page - 1) * perPage;
-    const finalBlocks = blocks.slice(start, start + perPage).join("\n\n");
+    const finalBlocks = allCommands.slice(start, start + perPage).join("\n\n");
+
+    // عد إجمالي الأوامر
+    let count = 0;
+    for (let cat in categories) count += categories[cat].length;
 
     const msg = `
-╭───〔  كايـࢪوس ⚡ قائمة الأوامر 〕───╮
+╭───〔 هياتو ⚡ قائمة الأوامر 〕───╮
 
 ${finalBlocks}
 
 📌 المجموع: ${count} أمر
 💡 استخدم ${prefix}help [اسم الأمر] لعرض التفاصيل.
 
-⇨ البوت: كايـࢪوس
-⇨ المطور: ڪولو
+⇨ البوت: هياتو
+⇨ المطور: انجالاتي
 
 ${page === 1 ? "🌸 استغفر الله العظيم وأتوب إليه\n🤍 اللهم صل وسلم على نبينا محمد ﷺ" : ""}
-╰─────────────────────╯
+╰────────────────────────────╯
 `;
 
     return api.sendMessage(
