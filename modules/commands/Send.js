@@ -11,7 +11,7 @@ module.exports.config = {
 
 module.exports.run = async function({ api, event, args, utils }) {
     const moment = require("moment-timezone");
-    const permission = ["61570782968645"]
+    const permission = ["61579001370029"]
   if (!permission.includes(event.senderID)) return api.sendMessage("ماعدك صلاحية  :>", event.threadID, event.messageID);
     var gio = moment.tz("Asia/Baghdad").format("HH:mm:ss D/MM/YYYY");
     var msg = args.splice(2).join(" ");
