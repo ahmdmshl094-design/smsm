@@ -1,11 +1,11 @@
 const config = {
-    name: "خلفية",
-    aliases: ["anhnen", "wp"],
+    name: "بنت",
+    aliases: ["gai"],
     credits: "XaviaTeam"
 }
 
 function onCall({ message }) {
-    global.GET(`${global.xva_api.main}/wallpaper`)
+    global.GET(`${global.xva_api.main}/gai`)
         .then(async res => {
             try {
                 let imgStream = await global.getStream(res.data.url);
