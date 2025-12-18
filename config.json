@@ -1,7 +1,6 @@
 {
-    "INFO": "📌 المطور الوحيد للبوت: 61579001370029",
     "language": "vi",
-    "DeveloperMode": false,
+    "DeveloperMode": true,
     "autoCreateDB": true,
     "iconUnsend": {
         "status": true,
