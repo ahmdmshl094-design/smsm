@@ -1,37 +1,65 @@
-module.exports.config = {
-  name: "ويكي",
-  version: "1.0.1",
-  hasPermssion: 0,
-  credits: "عمر",
-  description: "ابحث عن كل ما تريد معرفته من خلال ويكيبيديا",
-  commandCategory: "خدمات",
-  usages: "https://youtu.be/TlZ67tL02Lc",
-  cooldowns: 1,
-  dependencies: {
-        "wikijs": ""
-    }
+import wiki from 'wikijs'
+
+const config = {
+    name: "wiki",
+    description: "search on wikipedia",
+    usage: "[keyword]",
+    cooldown: 3,
+    permissions: [0, 1, 2],
+    credits: "XaviaTeam"
 }
 
-module.exports.languages = {
-    "vi": {
-        "missingInput": "Nội dung cần tìm kiếm không được để trống!",
-        "returnNotFound": "Không tìm thấy nội dung %1"
+const langData = {
+    "en_US": {
+        "missingInput": "Missing input!",
+        "noResult": "No result found!",
+        "error": "An error occurred, please try again later"
     },
-    "en": {
-        "missingInput": "ادخل ما تريد البحث عنه .",
-        "returnNotFound": "لا استطيع ايجاد : %1"
+    "vi_VN": {
+        "missingInput": "Thiếu dữ kiện!",
+        "noResult": "Không tìm thấy kết quả!",
+        "error": "Có lỗi xảy ra, vui lòng thử lại sau"
+    },
+    "ar_SY": {
+        "missingInput": "بيانات مفقودة!",
+        "noResult": "لم يتم العثور على نتائج!",
+        "error": "لقد حدث خطأ، رجاء أعد المحاولة لاحقا"
     }
 }
 
-module.exports.run = ({ event, args, api, getText }) => {
-    const wiki = (global.nodemodule["wikijs"]).default;
-    let content = args.join(" ");
-    let url = 'https://ar.wikipedia.org/w/api.php';
-    if (args[0] == "en") {
-        url = 'https://en.wikipedia.org/w/api.php'; 
-        content = args.slice(1, args.length);
-    }
-    if (!content) return api.sendMessage(getText("missingInput"), event.threadID, event.messageID);
-    return wiki({ apiUrl: url }).page(content).catch(() => api.sendMessage(getText("returnNotFound", content), event.threadID, event.messageID)).then(page => (typeof page != 'undefined') ? Promise.resolve(page.summary()).then(val => api.sendMessage(val, event.threadID, event.messageID)) : '');
+const supportedLanguages = ["en_US", "vi_VN", "ar_SY"];
 
+function getSystemLanguage() {
+    if (supportedLanguages.includes(global.config.LANGUAGE)) {
+        return global.config.LANGUAGE;
+    } else {
+        return "en_US";
+    }
+}
+
+async function onCall({ message, args, getLang, extra, data, userPermissions, prefix }) {
+    const input = args.join(" ");
+    if (!input) return message.reply(getLang("missingInput"));
+
+    wiki.default({ apiUrl: `https://${getSystemLanguage().split("_")[0]}.wikipedia.org/w/api.php` })
+        .find(input)
+        .then(async (page) => {
+            try {
+                const summary = await page.summary();
+
+                await message.reply(summary);
+            } catch (error) {
+                return message.reply(getLang("noResult"));
+            }
+        })
+        .catch((err) => {
+            console.error(err);
+            message.reply(getLang("error"));
+        });
+}
+
+export default {
+    config,
+    langData,
+    onCall
 }
