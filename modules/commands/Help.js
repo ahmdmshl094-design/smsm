@@ -23,14 +23,15 @@ module.exports.languages = {
   }
 };
 
-module.exports.run = async function({ api, event, args, getText }) {
-  const fs = require("fs");
+module.exports.run = async function ({ api, event, args, getText }) {
   const axios = require("axios");
   const { commands } = global.client;
   const { threadID, messageID } = event;
 
-  // تحميل الصورة
-  const image = (await axios.get("https://i.ibb.co/Vcsqzf4T/22ed4e077eadba33e9b9f78a64317ab9.jpg", { responseType: "stream" })).data;
+  const image = (await axios.get(
+    "https://i.ibb.co/Vcsqzf4T/22ed4e077eadba33e9b9f78a64317ab9.jpg",
+    { responseType: "stream" }
+  )).data;
 
   const command = commands.get((args[0] || "").toLowerCase());
   const threadSetting = global.data.threadData.get(parseInt(threadID)) || {};
@@ -38,17 +39,16 @@ module.exports.run = async function({ api, event, args, getText }) {
 
   if (!command) {
 
-    // جمع الأوامر حسب الفئة
     const categories = {};
     for (let [name, value] of commands) {
-      const cat = value.config.commandCategory || "عام";
+      const cat = (value.config.commandCategory || "عام").trim();
       if (!categories[cat]) categories[cat] = [];
       categories[cat].push(name);
     }
 
     const categoryMap = {
       "نظام": "النظام",
-      "ترفية": "الترفية",
+      "ترفية": "الترفيه",
       "اقتصاد": "الاقتصاد",
       "العاب": "الألعاب",
       "ذكاء صناعي": "الذكاء الصناعي",
@@ -66,47 +66,42 @@ module.exports.run = async function({ api, event, args, getText }) {
       "عام": "📌"
     };
 
-    // بناء القائمة مزخرفة ومنظمة
-    let allCommands = [];
+    const blocks = [];
     for (let cat in categories) {
       const cmds = categories[cat].sort();
-      let block = `╭─【 ${categoryEmoji[cat] || "📂"} ${categoryMap[cat] || cat} 】─╮\n`;
-      for (let i = 0; i < cmds.length; i++) {
-        block += `│ ${i + 1}. ${cmds[i]}\n`;
+      let text = `${categoryEmoji[cat] || "📂"} ${categoryMap[cat] || cat}\n`;
+      for (const cmd of cmds) {
+        text += `➤ ${cmd}\n`;
       }
-      block += `╰────────────────────╯`;
-      allCommands.push(block);
+      blocks.push(text);
     }
 
-    // تقسيم الصفحات 3
-    const totalPages = 3;
-    const perPage = Math.ceil(allCommands.length / totalPages);
+    const perPage = 2; // عدد الفئات في الصفحة
+    const totalPages = Math.ceil(blocks.length / perPage);
     const page = Math.min(Math.max(parseInt(args[0]) || 1, 1), totalPages);
-    const start = (page - 1) * perPage;
-    const finalBlocks = allCommands.slice(start, start + perPage).join("\n\n");
 
-    // عد إجمالي الأوامر
+    const start = (page - 1) * perPage;
+    const content = blocks.slice(start, start + perPage).join("\n");
+
     let count = 0;
     for (let cat in categories) count += categories[cat].length;
 
-    const msg = `
-╭───〔 هياتو ⚡ قائمة الأوامر 〕───╮
+    const msg =
+`📜 قائمة الأوامر
+━━━━━━━━━━━━━━
+📄 الصفحة: ${page}/${totalPages}
 
-${finalBlocks}
-
+${content}
+━━━━━━━━━━━━━━
 📌 المجموع: ${count} أمر
-💡 استخدم ${prefix}help [اسم الأمر] لعرض التفاصيل.
+💡 استخدم ${prefix}help [اسم الأمر]
 
-⇨ البوت: هياتو
-⇨ المطور: انجالاتي
-
-${page === 1 ? "🌸 استغفر الله العظيم وأتوب إليه\n🤍 اللهم صل وسلم على نبينا محمد ﷺ" : ""}
-╰────────────────────────────╯
-`;
+🤍 اللهم صل وسلم على نبينا محمد ﷺ`;
 
     return api.sendMessage(
       { body: msg, attachment: image },
-      threadID
+      threadID,
+      messageID
     );
   }
 
@@ -115,12 +110,12 @@ ${page === 1 ? "🌸 استغفر الله العظيم وأتوب إليه\n�
       "moduleInfo",
       command.config.name,
       command.config.description,
-      `${prefix}${command.config.name} ${(command.config.usages) ? command.config.usages : ""}`,
+      `${prefix}${command.config.name} ${command.config.usages || ""}`,
       command.config.commandCategory,
       command.config.cooldowns,
-      (command.config.hasPermssion == 0)
+      command.config.hasPermssion == 0
         ? getText("user")
-        : (command.config.hasPermssion == 1)
+        : command.config.hasPermssion == 1
         ? getText("adminGroup")
         : getText("adminBot"),
       command.config.credits
