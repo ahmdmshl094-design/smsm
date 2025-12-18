@@ -1,120 +1,213 @@
-module.exports.config = {
-  name: "فيديو",
-  version: "1.0.0",
-  hasPermssion: 0,
-  credits: "ياسين",
-  description: "فيديو من يوتوب",
-  commandCategory: "خدمات",
-  usages: "[searchVideos]",
-  cooldowns: 10,
-  dependencies: { "ytdl-core": "", "simple-youtube-api": "" }
-};
+import ytdl from "@distube/ytdl-core"
+import { join } from "path";
+import { statSync } from "fs";
 
-module.exports.handleReply = async function ({ api: e, event: a, handleReply: t }) {
-  try {
-    const n = global.nodemodule.axios,
-      s = global.nodemodule["fs-extra"],
-      i = await n.get("https://raw.githubusercontent.com/quyenkaneki/data/main/video.json"),
-      r = i.data.keyVideo.length,
-      o = i.data.keyVideo[Math.floor(Math.random() * r)],
-      { createReadStream: d, createWriteStream: m, unlinkSync: l, statSync: h } = global.nodemodule["fs-extra"];
-    var c, u = a.body;
-    if (c = u, isNaN(c) || c < 1 || c > 6) return e.sendMessage("Chọn từ 1 -> 6 thôi baby. iu uwu ❤️", a.threadID, a.messageID);
-    e.unsendMessage(t.messageID);
-    try {
-      var g = {
-        method: "GET",
-        url: "https://ytstream-download-youtube-videos.p.rapidapi.com/dl",
-        params: { id: `${t.link[a.body - 1]}` },
-        headers: {
-          "x-rapidapi-host": "ytstream-download-youtube-videos.p.rapidapi.com",
-          "x-rapidapi-key": `${o.API_KEY}`
-        }
-      };
-      var p = (await n.request(g)).data,
-        y = p.title;
-      if ("fail" == p.status) return e.sendMessage("Không thể gửi file này.", a.threadID);
-      var f = Object.keys(p.link)[1],
-        b = p.link[f][0];
-      path1 = __dirname + "/cache/1.mp4";
-      const i = (await n.get(`${b}`, { responseType: "arraybuffer" })).data;
-      return s.writeFileSync(path1, Buffer.from(i, "utf-8")), e.unsendMessage(t.messageID), s.statSync(__dirname + "/cache/1.mp4").size > 26e6 ? e.sendMessage("Không thể gửi file vì dung lượng lớn hơn 25MB.", a.threadID, (() => l(__dirname + "/cache/1.mp4")), a.messageID) : e.sendMessage({ body: `» ${y}`, attachment: s.createReadStream(__dirname + "/cache/1.mp4") }, a.threadID, (() => s.unlinkSync(__dirname + "/cache/1.mp4")), a.messageID)
-    } catch {
-      return e.sendMessage("Không thể gửi file này!", a.threadID, a.messageID)
-    }
-    for (let e = 1; e < 7; e++) l(__dirname + `/cache/${e}.png`)
-  } catch (e) {
-    console.error(e)
-  }
-};
+const _48MB = 48 * 1024 * 1024;
 
-module.exports.run = async function ({ api: e, event: a, args: t }) {
-  try {
-    const n = global.nodemodule.axios,
-      s = global.nodemodule["fs-extra"],
-      i = await n.get("https://raw.githubusercontent.com/quyenkaneki/data/main/video.json"),
-      r = i.data.keyVideo.length,
-      o = i.data.keyVideo[Math.floor(Math.random() * r)],
-      d = global.nodemodule["ytdl-core"],
-      c = global.nodemodule["simple-youtube-api"],
-      { createReadStream: m, createWriteStream: l, unlinkSync: h, statSync: u } = global.nodemodule["fs-extra"];
-    var g = ["AIzaSyBRycaxsBIsmtjAtFJJYujIteWFmpiAtOg"],
-      p = g[Math.floor(Math.random() * g.length)],
-      y = new c(p);
-    if (0 == t.length || !t) return e.sendMessage("» Phần tìm kiếm không được để trống!", a.threadID, a.messageID);
-    const f = t.join(" ");
-    if (0 == t.join(" ").indexOf("https://")) {
-      var b = {
-        method: "GET",
-        url: "https://ytstream-download-youtube-videos.p.rapidapi.com/dl",
-        params: { id: t.join(" ").split(/^.*(youtu.be\/|v\/|embed\/|watch\?|youtube.com\/user\/[^#]*#([^\/]*?\/)*)\??v?=?([^#\&\?]*).*/)[3] },
-        headers: {
-          "x-rapidapi-host": "ytstream-download-youtube-videos.p.rapidapi.com",
-          "x-rapidapi-key": `${o.API_KEY}`
-        }
-      };
-      var v = (await n.request(b)).data,
-        k = v.title;
-      if ("fail" == v.status) return e.sendMessage("Không thể gửi file này.", a.threadID);
-      var I = Object.keys(v.link)[1],
-        x = v.link[I][0];
-      path1 = __dirname + "/cache/1.mp4";
-      const i = (await n.get(`${x}`, { responseType: "arraybuffer" })).data;
-      return s.writeFileSync(path1, Buffer.from(i, "utf-8")), s.statSync(__dirname + "/cache/1.mp4").size > 26e6 ? e.sendMessage("Không thể gửi file vì nó có dung lượng lớn hơn 25MB.", a.threadID, (() => h(__dirname + "/cache/1.mp4")), a.messageID) : e.sendMessage({ body: `» ${k}`, attachment: s.createReadStream(__dirname + "/cache/1.mp4") }, a.threadID, (() => s.unlinkSync(__dirname + "/cache/1.mp4")), a.messageID)
+const config = {
+    name: "فيديو",
+    aliases: ['play', 'yt2mp4'],
+    version: "1.0.3",
+    description: "Play a video from youtube",
+    usage: '<keyword/url>',
+    cooldown: 30,
+    credits: "XaviaTeam",
+    extra: {
+        "MAX_VIDEOS": 6
     }
+}
+
+const langData = {
+    "en_US": {
+        "video.missingArguement": "Please provide keyword or an url",
+        "video.noResult": "No result found",
+        "video.invalidUrl": "Invalid url",
+        "video.invaldIndex": "Invalid index",
+        "video.tooLarge": "Video is too large, max size is 48MB",
+        "video.error": "An error occured"
+    },
+    "vi_VN": {
+        "video.missingArguement": "Vui lòng cung cấp từ khóa hoặc một url",
+        "video.noResult": "Không tìm thấy kết quả",
+        "video.invalidUrl": "Url không hợp lệ",
+        "video.invaldIndex": "Số thứ tự không hợp lệ",
+        "video.tooLarge": "Video quá lớn, tối đa 48MB",
+        "video.error": "Đã xảy ra lỗi"
+    },
+    "ar_SY": {
+        "video.missingArguement": "يرجى تقديم كلمة رئيسية أو عنوان الرابط",
+        "video.noResult": "لم يتم العثور على نتائج",
+        "video.invalidUrl": "الرابط غير صالح",
+        "video.invaldIndex": "فهرس غير صالح",
+        "video.tooLarge": "الفيديو كبير جدًا ، الحد الأقصى للحجم هو 48 ميجا بايت",
+        "video.error": "حدث خطأ"
+    }
+}
+
+async function playVideo(message, video, getLang) {
+    const { title, id } = video;
+    message.react("⏳");
+    const cachePath = join(global.cachePath, `_ytvideo${Date.now()}.mp4`);
     try {
-      const t = global.nodemodule["fs-extra"],
-        n = global.nodemodule.axios;
-      var w = [],
-        _ = "",
-        D = 0,
-        S = 0,
-        M = [],
-        $ = await y.searchVideos(f, 6);
-      for (let e of $) {
-        if (void 0 === e.id) return;
-        w.push(e.id);
-        e.id;
-        let a = __dirname + `/cache/${S += 1}.png`,
-          s = `https://img.youtube.com/vi/${e.id}/hqdefault.jpg`,
-          i = (await n.get(`${s}`, { responseType: "arraybuffer" })).data,
-          r = (await n.get(`https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${e.id}&key=${p}`)).data.items[0].contentDetails.duration.slice(2).replace("S", "").replace("M", ":");
-        (await n.get(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${e.id}&key=${p}`)).data.items[0].snippet.channelTitle;
-        if (t.writeFileSync(a, Buffer.from(i, "utf-8")), M.push(t.createReadStream(__dirname + `/cache/${S}.png`)), 1 == (D = D += 1)) var x = "⓵";
-        if (2 == D) x = "⓶";
-        if (3 == D) x = "⓷";
-        if (4 == D) x = "⓸";
-        if (5 == D) x = "⓹";
-        if (6 == D) x = "⓺";
-        _ += `${x} 《${r}》 ${e.title}\n\n`
-      }
-      var j = `»🔎 Có ${w.length} قائمة تطابق الكلمات الرئيسية للبحث:\n\n${_}» الرجاء الرد ، حدد أحد عمليات البحث أعلاه`;
-      return e.sendMessage({ attachment: M, body: j }, a.threadID, ((e, t) => global.client.handleReply.push({ name: this.config.name, messageID: t.messageID, author: a.senderID, link: w })), a.messageID)
-    } catch (t) {
-      return e.sendMessage("تعذر معالجة الطلب بسبب خطأ في الوحدة النمطية: " + t.message, a.threadID, a.messageID)
+        let stream = ytdl(id, { quality: 18 });
+        stream.pipe(global.writer(cachePath));
+        await new Promise((resolve, reject) => {
+            stream.on("end", resolve);
+            stream.on("error", reject);
+        });
+
+        const stat = statSync(cachePath);
+        if (stat.size > _48MB) {
+            message.reply(getLang("video.tooLarge"));
+        } else await message.reply({
+            body: `[ ${title} ]`,
+            attachment: global.reader(cachePath)
+        });
+        message.react("✅");
+    } catch (err) {
+        message.react("❌");
+        console.error(err);
+        message.reply(getLang("video.error"));
     }
-  } catch (t) {
-    console.error(t);
-    return e.sendMessage(`حدث خطأ: ${t.message}`, a.threadID, a.messageID)
-  }
-};
+
+    try {
+        if (global.isExists(cachePath)) global.deleteFile(cachePath);
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function chooseVideo({ message, eventData, getLang }) {
+    const { videos } = eventData;
+
+    const index = parseInt(message.body) - 1;
+    if (isNaN(index) || index < 0 || index >= videos.length) return message.reply(getLang("video.invaldIndex"));
+
+    const video = videos[index];
+
+    try {
+        await playVideo(message, video, getLang);
+    } catch (err) {
+        throw err;
+    }
+}
+
+function formatDuration(duration) {
+    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    const hours = (parseInt(match[1]) || 0);
+    const minutes = (parseInt(match[2]) || 0);
+    const seconds = (parseInt(match[3]) || 0);
+
+    return `${hours ? hours + ":" : ""}${minutes < 10 ? "0" : ""}${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+}
+
+async function getVideoInfo(id) {
+    try {
+        const { data } = await global.GET(`${global.xva_api.main}/ytvideodetails?id=${id}`)
+        return data.result[0] || null;
+    } catch (err) {
+        console.error(err);
+        return null;
+    }
+}
+
+async function searchByKeyword(keyword, MAX_VIDEOS) {
+    try {
+        if (!keyword) return [];
+        const { data } = await global.GET(`${global.xva_api.main}/ytsearch?keyword=${encodeURIComponent(keyword)}&maxResults=${MAX_VIDEOS}`);
+        if (!data?.result) return [];
+        return data.result;
+
+    } catch (err) {
+        throw err;
+    }
+}
+
+async function downloadThumbnails(urls) {
+    try {
+        const attachments = [];
+        for (let i = 0; i < urls.length; i++) {
+            const url = urls[i];
+            if (!url) continue;
+            const path = join(global.cachePath, `_ytvideo${Date.now()}.jpg`);
+            await global.downloadFile(path, url);
+
+            attachments.push(path);
+        }
+
+        return attachments;
+    } catch (err) {
+        throw err;
+    }
+}
+
+async function onCall({ message, args, extra, getLang }) {
+    try {
+        if (!args[0]) return message.reply(getLang("video.missingArguement"));
+        let url = args[0];
+        if (!url.match(/^(http(s)?:\/\/)?((w){3}.)?youtu(be|.be)?(\.com)?\/.+/)) {
+            let data = await searchByKeyword(args.join(" "), extra.MAX_VIDEOS);
+            if (!data[0]) return message.reply(getLang("video.noResult"));
+            const items = data;
+            const videos = [], attachments = [];
+
+            for (let i = 0; i < items.length; i++) {
+                if (!items[i]) break;
+                const id = items[i].id.videoId;
+                const info = await getVideoInfo(id);
+                if (!info) continue;
+
+                const duration = info.contentDetails.duration;
+                videos.push({
+                    id: id,
+                    title: info.snippet.title,
+                    duration: formatDuration(duration)
+                });
+            }
+
+            const thumbnails = await downloadThumbnails(items.map(item => item.snippet.thumbnails.high.url));
+
+            attachments.push(
+                ...(thumbnails || [])
+                    .map(path => global.reader(path))
+            );
+
+            if (!videos.length) return message.reply(getLang("video.noResult"));
+
+            const sendData = await message.reply({
+                body: videos.map((video, index) => `${index + 1}. ${video.title} (${video.duration})`).join("\n\n"),
+                attachment: attachments
+            });
+
+            for (let i = 0; i < thumbnails.length; i++) {
+                try {
+                    if (global.isExists(thumbnails[i])) global.deleteFile(thumbnails[i]);
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            return sendData.addReplyEvent({ callback: chooseVideo, videos });
+        }
+
+        const id = url.match(/(?:http(?:s):\/\/)?(?:www.|m.)?(?:youtu(?:be|.be))?(?:\.com)\/?(?:watch\?v=(?=\w.*))?([\w\.-]+)/)?.[1];
+        if (!id) return message.reply(getLang("video.invalidUrl"));
+        let info = await getVideoInfo(id);
+        if (!info) return message.reply(getLang("video.noResult"));
+        const video = {
+            title: info.snippet.title,
+            id
+        }
+
+        await playVideo(message, video, getLang);
+    } catch (err) {
+        console.error(err);
+        message.reply(getLang("video.error"));
+    }
+}
+
+export default {
+    config,
+    langData,
+    onCall
+}
