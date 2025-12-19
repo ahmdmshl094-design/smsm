@@ -1,6 +1,5 @@
 const fs = require("fs");
 const path = require("path");
-const readline = require("readline");
 
 // مسار ملف البيانات
 const dataFile = path.join(__dirname, "lifeData.json");
@@ -9,8 +8,8 @@ const dataFile = path.join(__dirname, "lifeData.json");
 function loadData() {
   if (!fs.existsSync(dataFile)) fs.writeFileSync(dataFile, "{}");
   try {
-    return JSON.parse(fs.readFileSync(dataFile));
-  } catch (e) {
+    return JSON.parse(fs.readFileSync(dataFile, "utf8"));
+  } catch {
     return {};
   }
 }
@@ -19,15 +18,14 @@ function saveData(data) {
   fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
 }
 
-// البيانات المخزنة
 let lifeData = loadData();
 
-// دالة التسجيل
+// =================== التسجيل ===================
 function registerLife(userId) {
-  if (lifeData[userId]) return `⚠️ أنت مسجل بالفعل!`;
+  if (lifeData[userId]) return "⚠️ أنت مسجل بالفعل.";
 
   lifeData[userId] = {
-    name: `لاسم`,
+    name: "لاسم",
     age: 20,
     energy: 100,
     money: 50,
@@ -40,16 +38,14 @@ function registerLife(userId) {
   };
 
   saveData(lifeData);
-  return `✅ تم تسجيلك بنجاح في لعبة الحياة! اكتب "حياة" لبدء اليوم.`;
+  return "✅ تم تسجيلك في لعبة الحياة!\nاكتب: حياة";
 }
 
-// دالة عرض حالة اللاعب
+// =================== عرض الحالة ===================
 function showLife(userId) {
-  if (!lifeData[userId]) return `⚠️ أنت لم تسجل بعد. اكتب "حياة تسجيل" للتسجيل.`;
-
   const p = lifeData[userId];
   return `
-═════════════════════════
+════════════════════
 💠 الاسم: ${p.name}
 🎖️ العمر: ${p.age}
 ⚡ الطاقة: ${p.energy}
@@ -59,167 +55,141 @@ function showLife(userId) {
 🧠 الذكاء: ${p.intelligence}
 💍 متزوج: ${p.married ? "نعم" : "لا"}
 👶 الأطفال: ${p.children}
-✨ المهارات المكتسبة: ${p.skills.join(", ") || "لا يوجد"}
-═════════════════════════
-`;
+✨ المهارات: ${p.skills.join("، ") || "لا يوجد"}
+════════════════════`;
 }
 
-// دالة تنفيذ نشاط
+// =================== تنفيذ الأنشطة ===================
 function doActivity(userId, activity) {
   const p = lifeData[userId];
+
   switch (activity) {
-    case "العمل":
+    case "عمل":
       p.money += 50;
       p.energy -= 20;
       p.mood -= 5;
-      p.skills.push("خبرة العمل");
-      return `💼 عملت اليوم وكسبت 50 مال، الطاقة -20، المزاج -5، واكتسبت مهارة "خبرة العمل"`;
-    case "الطعام":
+      if (!p.skills.includes("خبرة العمل")) p.skills.push("خبرة العمل");
+      return "💼 عملت اليوم وكسبت 50 مال.";
+
+    case "طعام":
       p.energy += 20;
       p.health += 10;
-      return `🍽️ أكلت طعام صحي، الطاقة +20، الصحة +10`;
-    case "الشراب":
+      return "🍽️ تناولت طعامًا صحيًا.";
+
+    case "شراب":
       p.mood += 10;
-      return `🥤 شربت مشروب منعش، المزاج +10`;
-    case "المشي":
+      return "🥤 شربت مشروبًا منعشًا.";
+
+    case "مشي":
       p.energy -= 10;
       p.health += 5;
       p.mood += 5;
-      return `🚶‍♂️ ذهبت للمشي، الطاقة -10، الصحة +5، المزاج +5`;
-    case "الزواج":
-      if (!p.married) {
-        p.married = true;
-        return `💍 تهانينا! أنت الآن متزوج.`;
-      } else {
-        return `⚠️ أنت متزوج بالفعل.`;
-      }
-    case "الإنجاب":
-      if (p.married) {
-        p.children += 1;
-        p.mood += 10;
-        return `👶 أنجبتم طفلاً جديدًا! المزاج +10`;
-      } else {
-        return `⚠️ لا يمكنك الإنجاب قبل الزواج.`;
-      }
-    case "التربية":
-      if (p.children > 0) {
-        p.energy -= 10;
-        p.mood += 5;
-        p.skills.push("تربية الأطفال");
-        return `👶 ربيت أطفالك، الطاقة -10، المزاج +5، واكتسبت مهارة "تربية الأطفال"`;
-      } else {
-        return `⚠️ ليس لديك أطفال لتربيهم.`;
-      }
-    case "التسوق":
-      if (p.money >= 20) {
-        p.money -= 20;
-        p.mood += 15;
-        return `🛒 ذهبت للتسوق، المزاج +15، المال -20`;
-      } else {
-        return `⚠️ لا يوجد مال كافي للتسوق.`;
-      }
-    case "الرياضة":
+      return "🚶‍♂️ ذهبت للمشي.";
+
+    case "زواج":
+      if (p.married) return "⚠️ أنت متزوج بالفعل.";
+      p.married = true;
+      return "💍 تهانينا! تم الزواج.";
+
+    case "إنجاب":
+      if (!p.married) return "⚠️ يجب الزواج أولاً.";
+      p.children += 1;
+      p.mood += 10;
+      return "👶 رزقت بطفل جديد!";
+
+    case "تربية":
+      if (p.children < 1) return "⚠️ لا يوجد أطفال.";
+      p.energy -= 10;
+      p.mood += 5;
+      if (!p.skills.includes("تربية الأطفال")) p.skills.push("تربية الأطفال");
+      return "👨‍👩‍👧 قمت بتربية أطفالك.";
+
+    case "تسوق":
+      if (p.money < 20) return "⚠️ لا يوجد مال كافٍ.";
+      p.money -= 20;
+      p.mood += 15;
+      return "🛒 ذهبت للتسوق.";
+
+    case "رياضة":
       p.energy -= 15;
       p.health += 10;
       p.mood += 5;
-      return `🏋️‍♂️ مارست الرياضة، الطاقة -15، الصحة +10، المزاج +5`;
-    case "القراءة":
+      return "🏋️‍♂️ مارست الرياضة.";
+
+    case "قراءة":
       p.intelligence += 5;
       p.mood += 5;
-      return `📖 قرأت كتابًا، الذكاء +5، المزاج +5`;
-    case "السفر":
-      if (p.money >= 30) {
-        p.money -= 30;
-        p.mood += 20;
-        p.energy -= 20;
-        return `✈️ سافرت، المزاج +20، الطاقة -20، المال -30`;
-      } else {
-        return `⚠️ لا يوجد مال كافي للسفر.`;
-      }
-    case "المشاكل":
+      return "📖 قرأت كتابًا.";
+
+    case "سفر":
+      if (p.money < 30) return "⚠️ لا يوجد مال كافٍ.";
+      p.money -= 30;
+      p.energy -= 20;
+      p.mood += 20;
+      return "✈️ سافرت واستمتعت.";
+
+    case "مشاكل":
       p.mood -= 15;
       p.health -= 5;
-      return `⚠️ واجهت مشاكل اليوم، المزاج -15، الصحة -5`;
+      return "⚠️ واجهت بعض المشاكل.";
+
     default:
-      return `⚠️ نشاط غير معروف.`;
+      return "⚠️ نشاط غير معروف.";
   }
 }
 
-// واجهة نصية تفاعلية
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
+// =================== أمر البوت ===================
+function handleLifeCommand(userId, message) {
+  message = message.trim();
 
-function startDay(userId) {
-  showMenu();
-
-  function showMenu() {
-    console.log(showLife(userId));
-    console.log("اختر نشاطك اليوم:");
-    console.log("1. العمل");
-    console.log("2. الطعام");
-    console.log("3. الشراب");
-    console.log("4. المشي");
-    console.log("5. الزواج");
-    console.log("6. الإنجاب");
-    console.log("7. التربية");
-    console.log("8. التسوق");
-    console.log("9. الرياضة");
-    console.log("10. القراءة");
-    console.log("11. السفر");
-    console.log("12. المشاكل");
-    console.log("0. إنهاء اليوم");
-
-    rl.question("اختر رقم النشاط: ", (answer) => {
-      const activities = {
-        "1": "العمل",
-        "2": "الطعام",
-        "3": "الشراب",
-        "4": "المشي",
-        "5": "الزواج",
-        "6": "الإنجاب",
-        "7": "التربية",
-        "8": "التسوق",
-        "9": "الرياضة",
-        "10": "القراءة",
-        "11": "السفر",
-        "12": "المشاكل"
-      };
-
-      if (answer === "0") {
-        saveData(lifeData);
-        console.log("✅ تم إنهاء اليوم وحفظ البيانات.");
-        rl.close();
-        return;
-      }
-
-      const activity = activities[answer];
-      if (!activity) {
-        console.log("⚠️ اختيار غير صحيح.");
-      } else {
-        console.log(doActivity(userId, activity));
-        saveData(lifeData);
-      }
-
-      showMenu();
-    });
-  }
-}
-
-// محاكاة استقبال الرسائل
-const userId = "user123";
-function handleMessage(message) {
-  message = message.toLowerCase();
   if (message === "حياة تسجيل") {
-    console.log(registerLife(userId));
-  } else if (message === "حياة") {
-    startDay(userId);
-  } else {
-    console.log(`⚠️ أمر غير معروف. استخدم "حياة تسجيل" أو "حياة"`);
+    return registerLife(userId);
   }
+
+  if (message === "حياة") {
+    if (!lifeData[userId])
+      return "⚠️ غير مسجل.\nاكتب: حياة تسجيل";
+
+    return (
+      showLife(userId) +
+      `
+📌 الأوامر:
+• حياة عمل
+• حياة طعام
+• حياة شراب
+• حياة مشي
+• حياة زواج
+• حياة إنجاب
+• حياة تربية
+• حياة تسوق
+• حياة رياضة
+• حياة قراءة
+• حياة سفر
+• حياة مشاكل`
+    );
+  }
+
+  if (message.startsWith("حياة ")) {
+    if (!lifeData[userId])
+      return "⚠️ سجل أولاً: حياة تسجيل";
+
+    const activity = message.replace("حياة ", "");
+    const result = doActivity(userId, activity);
+    saveData(lifeData);
+
+    return result + "\n" + showLife(userId);
+  }
+
+  return null;
 }
 
-// تجربة الكود
-handleMessage("حياة تسجيل"); // تسجيل المستخدم
-handleMessage("حياة");         // بدء اليوم التفاعلي
+// =================== ربطه بالبوت ===================
+module.exports = (api) => {
+  api.listenMqtt((err, event) => {
+    if (err) return;
+    if (event.type !== "message" || !event.body) return;
+
+    const reply = handleLifeCommand(event.senderID, event.body);
+    if (reply) api.sendMessage(reply, event.threadID);
+  });
+};
