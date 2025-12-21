@@ -1,187 +1,121 @@
-const fs = require("fs");
-const path = require("path");
-
-const dataFile = path.join(__dirname, "groupProtection.json");
-
-function loadData() {
-  if (!fs.existsSync(dataFile)) fs.writeFileSync(dataFile, "{}");
-  try {
-    return JSON.parse(fs.readFileSync(dataFile));
-  } catch (e) {
-    console.error("loadData error:", e);
-    return {};
-  }
-}
-
-function saveData(data) {
-  try {
-    fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
-  } catch (e) {
-    console.error("saveData error:", e);
-  }
-}
-
-async function isAdminOfGroup(api, threadID, userID) {
-  try {
-    const threadInfo = await api.getThreadInfo(threadID);
-    const senderID = String(userID);
-    
-    // البحث في قائمة المسؤولين
-    if (threadInfo.adminIDs && Array.isArray(threadInfo.adminIDs)) {
-      for (const admin of threadInfo.adminIDs) {
-        if (String(admin.id || admin) === senderID) {
-          return true;
-        }
-      }
-    }
-    
-    // البحث في admins
-    if (threadInfo.admins && Array.isArray(threadInfo.admins)) {
-      for (const admin of threadInfo.admins) {
-        if (String(admin.id || admin) === senderID) {
-          return true;
-        }
-      }
-    }
-    
-    // التحقق من المطورين
-    const ADMINBOT = Array.isArray(global.config?.ADMINBOT)
-      ? global.config.ADMINBOT.map(id => String(id))
-      : [];
-    
-    if (ADMINBOT.includes(senderID)) {
-      return true;
-    }
-    
-    return false;
-  } catch (e) {
-    console.error("isAdminOfGroup error:", e);
-    return false;
-  }
-}
-
-module.exports.config = {
-  name: "اعدادات",
-  version: "1.0.0",
-  hasPermssion: 1,
-  credits: "مطور",
-  description: "إعدادات حماية المجموعة",
-  commandCategory: "إدارة",
-  usages: "اعدادات",
-  cooldowns: 5
+const config = {
+    name: "اعدادات",
+    aliases: ["setting"],
+    description: "Settings for better group management",
+    usage: "",
+    cooldown: 3,
+    permissions: [1],
+    credits: "XaviaTeam",
 };
 
-module.exports.run = async function ({ api, event }) {
-  const { threadID, messageID, senderID } = event;
+const langData = {
+    ar_SY: {
+        menu: "⌈ اعـدادات الـمـجـموعـة ⌋\n\n1. [{antiSpam}] مكافحة الإزعاج\n2. [{antiOut}] مكافحة الخروج\n3. [{antiChangeGroupName}] استرجاع اسم المجموعة\n4. [{antiChangeGroupImage}] استرجاع صورة المجموعة\n5. [{antiChangeNickname}] منع تغيير الكنية\n\n6. [{notifyChange}] اخطار أحداث المجموعة\n\n⇒ اكتب أرقام الخيارات لتفعيل/تعطيل الإعدادات مباشرة",
+        DataNotReady: "البيانات ليست جاهزة، يرجى المحاولة لاحقًا\nاو استخدم: ${prefix}قم بالتحديث وحاول مرة أخرى",
+        notGroup: "لا يمكن استخدام هذا الأمر إلا في المجموعات!",
+        error: "حدث خطأ، يرجى المحاولة لاحقًا",
+        invalid: "مدخل غير صالح",
+        botNotAdmin: "البوت ليس أدمن في هذه المجموعة، لذلك سيتم تجاهل مكافحة الإزعاج ومكافحة الخروج",
+        success: "تم حفظ الإعدادات الجديدة بنجاح",
+    },
+};
 
-  // التحقق من أن المستخدم مسؤول أو مطور
-  const hasPermission = await isAdminOfGroup(api, threadID, senderID);
-  
-  if (!hasPermission) {
-    return api.sendMessage("❌ هذا الأمر للمشرفين فقط!", threadID, messageID);
-  }
+async function chooseMenu({ message, getLang, data }) {
+    try {
+        let chosenIndexes = message.args.filter(
+            (e) => !!e && !isNaN(e) && e > 0 && e <= 6
+        );
 
-  const data = loadData();
-  const threadInfo = await api.getThreadInfo(threadID);
+        if (chosenIndexes.length === 0) return message.reply(getLang("invalid"));
 
-  // إنشاء البيانات الأساسية إذا لم تكن موجودة
-  if (!data[threadID]) {
-    data[threadID] = {
-      enabled: true,
-      antiNickname: false,
-      antiLeave: false,
-      antiName: false,
-      antiImage: false,
-      originalName: threadInfo.threadName || "",
-      originalImage: threadInfo.imageSrc || "",
-      nicknames: {}
+        const _THREAD = data?.thread;
+        if (!_THREAD) return message.reply(getLang("error"));
+
+        const _THREAD_DATA = _THREAD.data;
+        const _THREAD_DATA_ANTI_SETTINGS = _THREAD_DATA?.antiSettings || {};
+
+        const newSettings = {
+            antiSpam: !!_THREAD_DATA_ANTI_SETTINGS?.antiSpam,
+            antiOut: !!_THREAD_DATA_ANTI_SETTINGS?.antiOut,
+            antiChangeGroupName: !!_THREAD_DATA_ANTI_SETTINGS?.antiChangeGroupName,
+            antiChangeGroupImage: !!_THREAD_DATA_ANTI_SETTINGS?.antiChangeGroupImage,
+            antiChangeNickname: !!_THREAD_DATA_ANTI_SETTINGS?.antiChangeNickname,
+            notifyChange: !!_THREAD_DATA_ANTI_SETTINGS?.notifyChange,
+        };
+
+        const settingsKeys = Object.keys(newSettings);
+
+        for (const _index of chosenIndexes) {
+            const _key = settingsKeys[_index - 1];
+            newSettings[_key] = !newSettings[_key];
+        }
+
+        // فحص إذا كان البوت أدمن
+        const isBotAdmin = _THREAD.info?.adminIDs?.some((e) => e == global.botID);
+        if (!isBotAdmin && (newSettings.antiSpam || newSettings.antiOut)) {
+            newSettings.antiOut = false;
+            newSettings.antiSpam = false;
+            await message.reply(getLang("botNotAdmin"));
+        }
+
+        // حفظ الإعدادات مباشرة
+        await global.controllers.Threads.updateData(message.threadID, {
+            antiSettings: newSettings,
+        });
+
+        const _newSettings = {};
+        for (const _key of settingsKeys) {
+            _newSettings[_key] = newSettings[_key] ? "✅" : "❌";
+        }
+
+        return message.reply(getLang("success") + "\n\n" +
+            "⌈ الإعدادات الحالية ⌋\n" +
+            `1. مكافحة الإزعاج: ${_newSettings.antiSpam}\n` +
+            `2. مكافحة الخروج: ${_newSettings.antiOut}\n` +
+            `3. استرجاع اسم المجموعة: ${_newSettings.antiChangeGroupName}\n` +
+            `4. استرجاع صورة المجموعة: ${_newSettings.antiChangeGroupImage}\n` +
+            `5. منع تغيير الكنية: ${_newSettings.antiChangeNickname}\n` +
+            `6. اخطار أحداث المجموعة: ${_newSettings.notifyChange}`
+        );
+    } catch (e) {
+        console.error(e);
+        message.reply(getLang("error"));
+    }
+}
+
+async function onCall({ message, getLang, data, prefix }) {
+    if (!data?.thread?.info) return message.reply(getLang("DataNotReady", { prefix }));
+    if (!data.thread.info.isGroup) return message.reply(getLang("notGroup"));
+
+    const _THREAD_DATA_ANTI_SETTINGS = {
+        ...(data.thread.data?.antiSettings || {}),
     };
-    
-    // حفظ الكنيات الحالية
-    if (threadInfo.participantData) {
-      threadInfo.participantData.forEach((participant) => {
-        if (participant.nickname) {
-          data[threadID].nicknames[participant.userID] = participant.nickname;
-        }
-      });
+
+    const keys = [
+        "antiSpam",
+        "antiOut",
+        "antiChangeGroupName",
+        "antiChangeGroupImage",
+        "antiChangeNickname",
+        "notifyChange",
+    ];
+
+    const displaySettings = {};
+    for (const key of keys) {
+        displaySettings[key] = _THREAD_DATA_ANTI_SETTINGS[key] ? "✅" : "❌";
     }
-    
-    saveData(data);
-  }
 
-  const s = data[threadID];
+    return message
+        .reply(getLang("menu", { ...displaySettings }))
+        .then((_) => _.addReplyEvent({ callback: chooseMenu }))
+        .catch((e) => {
+            console.error(e);
+            message.reply(getLang("error"));
+        });
+}
 
-  let msg =
-`✨⚙️ **إعــدادات حــمــايــة الــمــجــمــوعــة** ⚙️✨
-━━━━━━━━━━━━━━━━━━━━━━━
-📋 حالة الحماية: ${s.enabled ? "🟢 مفعلة" : "🔴 معطلة"}
-
-1️⃣ • **منع تغيير الكنيات:** ${s.antiNickname ? "🟢 مفعل" : "🔴 معطل"}
-2️⃣ • **منع المغادرة:** ${s.antiLeave ? "🟢 مفعل" : "🔴 معطل"}
-3️⃣ • **منع تغيير اسم المجموعة:** ${s.antiName ? "🟢 مفعل" : "🔴 معطل"}
-4️⃣ • **منع تغيير صورة المجموعة:** ${s.antiImage ? "🟢 مفعل" : "🔴 معطل"}
-
-━━━━━━━━━━━━━━━━━━━━━━━
-📩 *قم بالرد على الرسالة برقم الإعداد للتفعيل أو التعطيل.*
-(مثال: ارسل 1 أو 1 2 3 4 لتفعيل أو تعطيل عدة خيارات)`;
-
-  api.sendMessage(msg, threadID, (err, info) => {
-    if (!err) {
-      global.client.handleReply.push({
-        name: module.exports.config.name,
-        messageID: info.messageID,
-        threadID,
-        type: "settings"
-      });
-    }
-  }, messageID);
-};
-
-module.exports.handleReply = async function ({ api, event, handleReply }) {
-  const { threadID, messageID, senderID, body } = event;
-
-  if (String(threadID) !== String(handleReply.threadID)) return;
-
-  // التحقق من أن المستخدم مسؤول أو مطور
-  const hasPermission = await isAdminOfGroup(api, threadID, senderID);
-  
-  if (!hasPermission) {
-    return api.sendMessage("❌ هذا الأمر للمشرفين فقط!", threadID, messageID);
-  }
-
-  // معالجة الإدخال (يمكن كتابة أرقام متعددة مفصولة بمسافات أو فواصل)
-  const choices = String(body)
-    .trim()
-    .split(/[\s,]+/)
-    .map(n => parseInt(n))
-    .filter(n => !isNaN(n) && n >= 1 && n <= 4);
-
-  if (choices.length === 0) {
-    return api.sendMessage("❌ اختر رقم من 1 إلى 4 فقط.\nمثال: ارسل 1 أو 1 2 3 4", threadID, messageID);
-  }
-
-  const data = loadData();
-  if (!data[threadID]) return;
-
-  const settingsMap = {
-    1: { key: "antiNickname", name: "منع تغيير الكنيات" },
-    2: { key: "antiLeave", name: "منع المغادرة" },
-    3: { key: "antiName", name: "منع تغيير اسم المجموعة" },
-    4: { key: "antiImage", name: "منع تغيير صورة المجموعة" }
-  };
-
-  let response = "✅ تم تحديث الإعدادات:\n";
-
-  choices.forEach((choice) => {
-    const setting = settingsMap[choice];
-    if (setting) {
-      data[threadID][setting.key] = !data[threadID][setting.key];
-      const status = data[threadID][setting.key] ? "🟢 مفعل" : "🔴 معطل";
-      response += `\n${setting.name}: ${status}`;
-    }
-  });
-
-  saveData(data);
-
-  return api.sendMessage(response, threadID, messageID);
+export default {
+    config,
+    langData,
+    onCall,
 };
