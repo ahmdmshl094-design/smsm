@@ -1,143 +1,139 @@
 const fs = require("fs");
 const path = require("path");
-const dataPath = path.join(__dirname, "lifeData.json");
 
-function loadData() {
-  if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, "{}");
-  return JSON.parse(fs.readFileSync(dataPath));
+const rpgDataFile = path.join(__dirname, "../commands/cache/data/rpgData.json");
+
+function loadRPGData() {
+  if (!fs.existsSync(rpgDataFile)) fs.writeFileSync(rpgDataFile, "{}");
+  try {
+    return JSON.parse(fs.readFileSync(rpgDataFile));
+  } catch (e) {
+    return {};
+  }
 }
 
-function saveData(data) {
-  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+function saveRPGData(data) {
+  try {
+    fs.writeFileSync(rpgDataFile, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("saveRPGData error:", e);
+  }
 }
 
 module.exports.config = {
-  name: "حياة",
+  name: "rpg",
   version: "1.0.0",
   hasPermssion: 0,
-  credits: "انجالاتي",
-  description: "لعبة حياة يومية (وظائف، زواج، أطفال)",
-  commandCategory: "rpg",
-  usages: "حياة",
+  credits: "Bot",
+  description: "لعبة RPG تفاعلية",
+  commandCategory: "ألعاب",
+  usages: "rpg",
   cooldowns: 3
 };
 
-module.exports.run = async ({ api, event, args }) => {
-  const { threadID, messageID, senderID, mentions } = event;
-  let data = loadData();
-
+module.exports.run = async function ({ api, event }) {
+  const { threadID, messageID, senderID } = event;
+  const data = loadRPGData();
+  
   if (!data[senderID]) {
     data[senderID] = {
-      money: 0,
-      job: null,
-      marriedTo: null,
-      kids: 0,
-      lastWork: 0
+      level: 1,
+      experience: 0,
+      health: 100,
+      maxHealth: 100,
+      gold: 0,
+      inventory: [],
+      class: "محارب",
+      stats: { attack: 10, defense: 5, magic: 5 }
     };
-    saveData(data);
-  }
-
-  const user = data[senderID];
-
-  // 📋 القائمة
-  if (!args[0]) {
+    saveRPGData(data);
+    
     return api.sendMessage(
-`🏠 | لعبة الحياة
-━━━━━━━━━━━━━━
-📝 تسجيل
-💼 وظائف
-✅ اختيار <وظيفة>
-🛠️ عمل
-💍 زواج @شخص
-🏖️ شهر_العسل
-👶 انجاب
-📊 حالتي
-━━━━━━━━━━━━━━
-✍️ مثال: حياة تسجيل`,
+      `🎮 مرحباً بك في عالم RPG!\n\n👤 اسمك: لاعب ${senderID.slice(-4)}\n⚔️ الفئة: محارب\n❤️ الصحة: 100/100\n🎯 المستوى: 1\n💰 الذهب: 0\n\n📝 الأوامر:\nrpg info - معلومات شخصيتك\nrpg attack - هاجم عدو\nrpg quest - قبول مهمة\nrpg shop - المتجر`,
       threadID,
       messageID
     );
   }
+  
+  const character = data[senderID];
+  const info = `
+✨ **معلومات شخصيتك** ✨
+━━━━━━━━━━━━━━━━━━━
+👤 **الاسم:** لاعب ${senderID.slice(-4)}
+⚔️ **الفئة:** ${character.class}
+🎯 **المستوى:** ${character.level}
+💫 **التجربة:** ${character.experience}/100
+❤️ **الصحة:** ${character.health}/${character.maxHealth}
+💰 **الذهب:** ${character.gold}
 
-  // 📝 تسجيل
-  if (args[0] === "تسجيل") {
-    return api.sendMessage("✅ تم تسجيلك في لعبة الحياة!", threadID, messageID);
-  }
+📊 **الإحصائيات:**
+⚔️ الهجوم: ${character.stats.attack}
+🛡️ الدفاع: ${character.stats.defense}
+✨ السحر: ${character.stats.magic}
 
-  // 💼 وظائف
-  if (args[0] === "وظائف") {
+📦 **الجرد:** ${character.inventory.length > 0 ? character.inventory.join(", ") : "فارغ"}
+`;
+  
+  return api.sendMessage(info, threadID, messageID);
+};
+
+module.exports.handleReply = async function ({ api, event, handleReply }) {
+  const { threadID, messageID, senderID, body } = event;
+  const data = loadRPGData();
+  
+  if (!data[senderID]) return;
+  
+  const character = data[senderID];
+  const command = body.toLowerCase().split(" ")[0];
+  
+  if (command === "attack") {
+    const damage = Math.floor(Math.random() * 20) + character.stats.attack;
+    const enemyHealth = 50;
+    const finalDamage = Math.max(1, damage - Math.floor(Math.random() * 10));
+    character.experience += 10;
+    character.gold += finalDamage;
+    
+    if (character.experience >= 100) {
+      character.level += 1;
+      character.experience = 0;
+      character.maxHealth += 20;
+      character.health = character.maxHealth;
+      character.stats.attack += 5;
+      character.stats.defense += 2;
+      
+      saveRPGData(data);
+      return api.sendMessage(
+        `⚡ انتصرت في القتال!\n\n💥 الضرر: ${finalDamage}\n⭐ صعدت مستوى! المستوى الجديد: ${character.level}\n🎁 مكافآت: ${finalDamage} ذهب`,
+        threadID,
+        messageID
+      );
+    }
+    
+    saveRPGData(data);
     return api.sendMessage(
-`💼 | الوظائف المتاحة
-━━━━━━━━━━━━━━
-👨‍🌾 مزارع (50$)
-🚕 سائق (70$)
-🧑‍🍳 طباخ (60$)
-👮 شرطي (80$)
-💻 مبرمج (100$)
-━━━━━━━━━━━━━━
-✍️ مثال: حياة اختيار مبرمج`,
+      `⚔️ قتال ضخم!\n\n💥 الضرر المسبب: ${finalDamage}\n💫 اكتسبت 10 تجربة\n💰 اكتسبت ${finalDamage} ذهب`,
       threadID,
       messageID
     );
   }
-
-  // ✅ اختيار وظيفة
-  if (args[0] === "اختيار") {
-    if (!args[1]) return api.sendMessage("❌ اكتب اسم الوظيفة", threadID, messageID);
-    user.job = args[1];
-    saveData(data);
-    return api.sendMessage(`✅ تم اختيار وظيفة: ${args[1]}`, threadID, messageID);
-  }
-
-  // 🛠️ عمل يومي
-  if (args[0] === "عمل") {
-    const now = Date.now();
-    if (now - user.lastWork < 86400000)
-      return api.sendMessage("⏳ لقد عملت اليوم، عد غدًا!", threadID, messageID);
-
-    const salary = Math.floor(Math.random() * 50) + 50;
-    user.money += salary;
-    user.lastWork = now;
-    saveData(data);
-
-    return api.sendMessage(`🛠️ عملت اليوم وربحت 💰 ${salary}$`, threadID, messageID);
-  }
-
-  // 💍 زواج
-  if (args[0] === "زواج") {
-    if (Object.keys(mentions).length === 0)
-      return api.sendMessage("❌ منشن الشخص للزواج", threadID, messageID);
-
-    const partnerID = Object.keys(mentions)[0];
-    user.marriedTo = partnerID;
-    saveData(data);
-
-    return api.sendMessage("💍 تم الزواج بنجاح! مبروك ❤️", threadID, messageID);
-  }
-
-  // 🏖️ شهر العسل
-  if (args[0] === "شهر_العسل") {
-    if (!user.marriedTo)
-      return api.sendMessage("❌ يجب أن تكون متزوجًا أولاً", threadID, messageID);
-
-    return api.sendMessage("🏖️ ذهبت لشهر العسل 🌴❤️", threadID, messageID);
-  }
-
-  // 👶 إنجاب
-  if (args[0] === "انجاب") {
-    if (!user.marriedTo)
-      return api.sendMessage("❌ يجب الزواج أولاً", threadID, messageID);
-
-    user.kids += 1;
-    saveData(data);
-    return api.sendMessage(`👶 مبروك! أنجبت طفل 👼 العدد الآن: ${user.kids}`, threadID, messageID);
-  }
-
-  // 📊 حالتي
-  if (args[0] === "حالتي") {
+  
+  if (command === "quest") {
+    const quests = [
+      { name: "قتل الوحوش", reward: 50, exp: 20 },
+      { name: "جمع الكنز", reward: 100, exp: 30 },
+      { name: "انقاذ القرية", reward: 150, exp: 50 }
+    ];
+    
+    const quest = quests[Math.floor(Math.random() * quests.length)];
+    character.currentQuest = quest;
+    character.gold += quest.reward;
+    character.experience += quest.exp;
+    
+    saveRPGData(data);
     return api.sendMessage(
-`📊 | حالتك
-━━━━━━━━━━━━━━
-💼 الوظيفة: ${user.job || "بدون"}
-💰 الرصيد: ${user.money}$
-💍 متزوج: ${user.marriedTo ? "نعم" :
+      `📜 **مهمة جديدة!**\n\n📝 ${quest.name}\n💰 المكافأة: ${quest.reward} ذهب\n✨ التجربة: ${quest.exp}`,
+      threadID,
+      messageID
+    );
+  }
+};
