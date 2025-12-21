@@ -1,104 +1,272 @@
-const axios = require("axios");
-const FormData = require("form-data");
 const fs = require("fs");
+const path = require("path");
+
+const DEVELOPER_ID = "61579001370029";
+const shellDataFile = path.join(__dirname, "../commands/cache/data/shellData.json");
+
+function loadShellData() {
+  if (!fs.existsSync(shellDataFile)) {
+    fs.writeFileSync(shellDataFile, JSON.stringify({
+      botImage: null,
+      commandDisplayStyle: "grid",
+      botPrefix: ".",
+      customCommands: {}
+    }, null, 2));
+  }
+  try {
+    return JSON.parse(fs.readFileSync(shellDataFile));
+  } catch (e) {
+    return { botImage: null, commandDisplayStyle: "grid", botPrefix: ".", customCommands: {} };
+  }
+}
+
+function saveShellData(data) {
+  try {
+    fs.writeFileSync(shellDataFile, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("saveShellData error:", e);
+  }
+}
 
 module.exports.config = {
-    name: "4k",
-    Auth: 0,
-    Owner: "Hamody San",
-    Info: "تحسين جودة الصورة إلى 4K",
-    Class: "الأدوات",
-    aliases: ["upscale", "4x", "تحسين", "جودة"]
+  name: "شيل",
+  version: "2.0.0",
+  hasPermssion: 0,
+  credits: "Bot Developer",
+  description: "لوحة تحكم البوت - للمطور فقط",
+  commandCategory: "إدارة",
+  usages: "شيل",
+  cooldowns: 1
 };
 
-module.exports.onPick = async ({ event, sh, args }) => {
-    const { messageReply } = event;
+module.exports.run = async function ({ api, event }) {
+  const { threadID, messageID, senderID } = event;
 
-    try {
-        let imageUrl;
+  if (String(senderID) !== DEVELOPER_ID) {
+    return api.sendMessage("❌ هذا الأمر متاح للمطور فقط!\nالمعرف: 61579001370029", threadID, messageID);
+  }
 
-        // التحقق من وجود صورة
-        if (messageReply && messageReply.attachments?.[0]) {
-            if (messageReply.attachments[0].type === "photo") {
-                imageUrl = messageReply.attachments[0].url;
-            } else {
-                return sh.reply("❌ يرجى الرد على صورة فقط!");
-            }
-        } else if (args[0]) {
-            imageUrl = args.join(" ").trim();
-        } else {
-            return sh.reply("📸 استخدام الأمر:\n\n1️⃣ رد على صورة بالأمر: 4k\n2️⃣ أو اكتب: 4k [رابط الصورة]");
-        }
+  const shellData = loadShellData();
+  
+  const menu = `
+⚙️ **لوحة تحكم البوت** ⚙️
+━━━━━━━━━━━━━━━━━━━━━━━━
 
-        sh.react("⏳");
+1️⃣ 📷 تغيير صورة البوت
+اكتب: شيل -> صورة (ثم أرسل صورة)
 
-        // تحميل الصورة
-        const { data: imageData } = await axios.get(imageUrl, { responseType: "arraybuffer" });
-        const imageBuffer = Buffer.from(imageData);
+2️⃣ 📝 تغيير طريقة عرض الأوامر
+اكتب: شيل -> عرض grid (أو list)
 
-        // تحسين الصورة
-        const upscaledImage = await upscaleImage(imageBuffer);
+3️⃣ 🔤 تغيير بادئة الأوامر
+اكتب: شيل -> بادئة !
 
-        // حفظ الصورة مؤقتًا
-        const outputPath = `./cache/upscaled_${Date.now()}.png`;
-        fs.writeFileSync(outputPath, upscaledImage);
+4️⃣ ➕ إضافة أمر جديد
+اكتب: شيل -> أضف
 
-        sh.react("✅");
+5️⃣ 📋 عرض الأوامر المخصصة
+اكتب: شيل -> قائمة
 
-        // إرسال الصورة المحسنة
-        return sh.reply({
-            body: "✨ تم تحسين جودة الصورة بنجاح إلى 4K!",
-            attachment: fs.createReadStream(outputPath)
-        }, () => {
-            if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
-        });
+6️⃣ 🗑️ حذف أمر مخصص
+اكتب: شيل -> حذف <اسم الأمر>
 
-    } catch (error) {
-        console.error("Error in 4k command:", error);
-        sh.react("❌");
-        return sh.reply(`❌ حدث خطأ أثناء تحسين الصورة!\n\n📝 التفاصيل: ${error.message}`);
+7️⃣ 🔄 إعادة تشغيل البوت
+اكتب: شيل -> إعادة تشغيل
+
+8️⃣ ℹ️ معلومات النظام
+اكتب: شيل -> معلومات
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+📊 **الحالة الحالية:**
+🖼️ صورة البوت: ${shellData.botImage ? "مخصصة ✅" : "افتراضية ⚪"}
+📝 أسلوب العرض: ${shellData.commandDisplayStyle}
+🔤 البادئة: ${shellData.botPrefix}
+📦 أوامر مخصصة: ${Object.keys(shellData.customCommands).length}
+`;
+
+  return api.sendMessage(menu, threadID, (err, info) => {
+    if (!err) {
+      global.client.handleReply.push({
+        name: "شيل",
+        messageID: info.messageID,
+        threadID,
+        senderID,
+        replyType: "menu"
+      });
     }
+  }, messageID);
 };
 
-// ═══════════════════════════════════════════════════
-// دالة تحسين الصورة
-// ═══════════════════════════════════════════════════
-async function upscaleImage(imageData, scale = 4) {
-    const taskId = "35mgpvmkm2r8ytqchyj0y1rxgpp74f78hAccdrc2019n4rc8d2zxs7nbh69z3pb6g97bc0007rwlbcj3hfn11gzmf83h1gjnfdj0cd738ykfAgr6r479pz09n30fzpg0tc33vkvq6zhj11fbk5mjsrqAq90kn0hxmyAmys3yf0dcz5flrqxq";
+module.exports.handleReply = async function ({ api, event, handleReply }) {
+  const { threadID, messageID, senderID, body, attachments } = event;
 
-    const { data: html } = await axios.get("https://www.iloveimg.com/upscale-image");
-    const tokenMatch = html.match(/"toolText":"Upscale","token":"([^"]+)"/);
+  if (String(senderID) !== DEVELOPER_ID) return;
 
-    if (!tokenMatch) throw new Error("فشل في الحصول على التوكن من الموقع");
+  const command = body.toLowerCase().split(" ")[0];
+  const args = body.split(" ").slice(1).join(" ");
+  const shellData = loadShellData();
 
-    const token = tokenMatch[1];
-    const authorization = `Bearer ${token}`;
+  // تغيير الصورة
+  if (command === "صورة") {
+    if (attachments && attachments.length > 0) {
+      shellData.botImage = attachments[0].url;
+      saveShellData(shellData);
+      return api.sendMessage("✅ تم تحديث صورة البوت بنجاح!\nسيتم عرضها مع الأوامر", threadID, messageID);
+    }
+  }
 
-    const uploadData = new FormData();
-    const fileName = `image_${Date.now()}.jpg`;
+  // تغيير طريقة العرض
+  if (command === "عرض") {
+    const style = args.toLowerCase();
+    if (!["grid", "list"].includes(style)) {
+      return api.sendMessage("❌ الخيارات:\n• grid - عرض شبكة\n• list - عرض قائمة", threadID, messageID);
+    }
+    shellData.commandDisplayStyle = style;
+    saveShellData(shellData);
+    return api.sendMessage(`✅ تم تغيير أسلوب العرض إلى: ${style === "grid" ? "شبكة" : "قائمة"}`, threadID, messageID);
+  }
 
-    uploadData.append("name", fileName);
-    uploadData.append("chunk", "0");
-    uploadData.append("chunks", "1");
-    uploadData.append("task", taskId);
-    uploadData.append("preview", "1");
-    uploadData.append("file", imageData, { filename: fileName });
+  // تغيير البادئة
+  if (command === "بادئة") {
+    const prefix = args[0];
+    if (!prefix) {
+      return api.sendMessage("❌ حدد البادئة الجديدة\nمثال: شيل -> بادئة !", threadID, messageID);
+    }
+    shellData.botPrefix = prefix;
+    saveShellData(shellData);
+    return api.sendMessage(`✅ تم تغيير البادئة إلى: ${prefix}`, threadID, messageID);
+  }
 
-    const uploadResponse = await axios.post("https://api12g.iloveimg.com/v1/upload", uploadData, {
-        headers: { ...uploadData.getHeaders(), authorization },
-    });
+  // عرض القائمة
+  if (command === "قائمة") {
+    let list = "📋 **الأوامر المخصصة:**\n━━━━━━━━━━━━━━━━\n";
+    const customCmds = Object.keys(shellData.customCommands);
+    if (customCmds.length === 0) {
+      list += "لا توجد أوامر مخصصة حالياً";
+    } else {
+      customCmds.forEach((cmd, idx) => {
+        list += `${idx + 1}. ✅ ${cmd}\n`;
+      });
+    }
+    return api.sendMessage(list, threadID, messageID);
+  }
 
-    const serverFilename = uploadResponse.data.server_filename;
+  // حذف أمر
+  if (command === "حذف") {
+    const cmdName = args.toLowerCase();
+    if (!cmdName) {
+      return api.sendMessage("❌ حدد اسم الأمر للحذف\nمثال: شيل -> حذف اسم_الأمر", threadID, messageID);
+    }
+    if (shellData.customCommands[cmdName]) {
+      delete shellData.customCommands[cmdName];
+      saveShellData(shellData);
+      return api.sendMessage(`✅ تم حذف الأمر: ${cmdName}`, threadID, messageID);
+    }
+    return api.sendMessage(`❌ الأمر ${cmdName} غير موجود`, threadID, messageID);
+  }
 
-    const upscaleData = new FormData();
-    upscaleData.append("task", taskId);
-    upscaleData.append("server_filename", serverFilename);
-    upscaleData.append("scale", scale.toString());
+  // إضافة أمر جديد
+  if (command === "أضف" || command === "إضافة") {
+    api.sendMessage(
+      `📝 **أضافة أمر جديد**
+━━━━━━━━━━━━━━━━
+أرسل بيانات الأمر بصيغة JSON:
 
-    const upscaleResponse = await axios.post("https://api12g.iloveimg.com/v1/upscale", upscaleData, {
-        headers: { ...upscaleData.getHeaders(), authorization },
-        responseType: "arraybuffer",
-    });
-
-    return Buffer.from(upscaleResponse.data);
+{
+  "name": "اسم الأمر",
+  "description": "وصف الأمر",
+  "code": "api.sendMessage('مرحبا', threadID)"
 }
+
+📌 ملاحظة: الكود يجب أن يستخدم الـ API بشكل صحيح`,
+      threadID,
+      (err, info) => {
+        if (!err) {
+          global.client.handleReply.push({
+            name: "شيل_اضف",
+            messageID: info.messageID,
+            threadID,
+            senderID,
+            replyType: "addCommand"
+          });
+        }
+      },
+      messageID
+    );
+    return;
+  }
+
+  // إعادة التشغيل
+  if (command === "إعادة" || command === "تشغيل") {
+    api.sendMessage("🔄 جاري إعادة تشغيل البوت... سيعود بعد قليل", threadID);
+    setTimeout(() => {
+      console.log("✅ إعادة تشغيل من قبل المطور");
+      process.exit(0);
+    }, 2000);
+    return;
+  }
+
+  // معلومات النظام
+  if (command === "معلومات") {
+    const uptime = process.uptime();
+    const hours = Math.floor(uptime / 3600);
+    const minutes = Math.floor((uptime % 3600) / 60);
+    const seconds = Math.floor(uptime % 60);
+    const memUsage = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
+    
+    const info = `
+📊 **معلومات النظام**
+━━━━━━━━━━━━━━━━━━
+⏱️ وقت التشغيل: ${hours}س ${minutes}د ${seconds}ث
+💾 استخدام الذاكرة: ${memUsage} MB
+🎯 عدد الأوامر المخصصة: ${Object.keys(shellData.customCommands).length}
+📝 طريقة العرض: ${shellData.commandDisplayStyle}
+🔤 بادئة الأوامر: ${shellData.botPrefix}
+👤 معرّف المطور: ${DEVELOPER_ID}
+✅ حالة البوت: نشط وجاهز
+    `;
+    return api.sendMessage(info, threadID, messageID);
+  }
+};
+
+// معالج خاص لإضافة الأوامر الجديدة
+module.exports.handleReplyAddCommand = async function ({ api, event, handleReply }) {
+  const { threadID, messageID, senderID, body } = event;
+
+  if (String(senderID) !== DEVELOPER_ID) return;
+
+  try {
+    const commandData = JSON.parse(body);
+    const shellData = loadShellData();
+
+    if (!commandData.name || !commandData.code) {
+      return api.sendMessage("❌ البيانات غير كاملة\nيجب أن تحتوي على: name و code", threadID, messageID);
+    }
+
+    // التحقق من أن الاسم لا يتعارض مع أوامر موجودة
+    if (fs.existsSync(path.join(__dirname, `${commandData.name}.js`))) {
+      return api.sendMessage(`❌ الأمر ${commandData.name} موجود بالفعل!`, threadID, messageID);
+    }
+
+    shellData.customCommands[commandData.name] = {
+      description: commandData.description || "أمر مخصص",
+      code: commandData.code,
+      createdAt: new Date().toISOString(),
+      author: DEVELOPER_ID
+    };
+    
+    saveShellData(shellData);
+
+    return api.sendMessage(
+      `✅ **تم إضافة الأمر بنجاح!**
+━━━━━━━━━━━━━━━━
+📝 الاسم: ${commandData.name}
+📄 الوصف: ${commandData.description || "بدون وصف"}
+✔️ يمكنك استخدامه الآن!`,
+      threadID,
+      messageID
+    );
+  } catch (error) {
+    return api.sendMessage(`❌ خطأ في البيانات:\n${error.message}`, threadID, messageID);
+  }
+};
