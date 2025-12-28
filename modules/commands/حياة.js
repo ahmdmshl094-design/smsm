@@ -1,236 +1,224 @@
-const fs = require("fs");
+ fs = require("fs");
 const path = require("path");
 
-const ملف_بيانات = path.join(__dirname, "../commands/cache/data/rpgData.json");
-let ذاكرة = null;
+const dataPath = path.join(__dirname, "rpgData.json");
+let cache = null;
 
 // ------------------- إدارة البيانات -------------------
-function تحميل_البيانات() {
-  if (ذاكرة) return ذاكرة;
-  if (!fs.existsSync(ملف_بيانات)) fs.writeFileSync(ملف_بيانات, "{}");
+function loadData() {
+  if (cache) return cache;
+  if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, "{}");
   try {
-    ذاكرة = JSON.parse(fs.readFileSync(ملف_بيانات));
+    cache = JSON.parse(fs.readFileSync(dataPath, "utf-8"));
   } catch (e) {
-    ذاكرة = {};
+    cache = {};
   }
-  return ذاكرة;
+  return cache;
 }
 
-function حفظ_البيانات(بيانات) {
+function saveData(data) {
   try {
-    fs.writeFileSync(ملف_بيانات, JSON.stringify(بيانات, null, 2));
-    ذاكرة = بيانات;
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+    cache = data;
   } catch (e) {
     console.error("خطأ في حفظ البيانات:", e);
   }
 }
 
 // ------------------- دوال مساعدة -------------------
-function اقفل_القيمة(قيمة, ادنى = 0, اعلى = 9999) {
-  return Math.max(ادنى, Math.min(اعلى, قيمة));
+function clamp(value, min = 0, max = 9999) {
+  return Math.max(min, Math.min(max, value));
 }
 
 // ------------------- إنشاء شخصية -------------------
-function انشاء_شخصية(معرف) {
+function createCharacter() {
   return {
-    مستوى: 1,
-    تجربة: 0,
-    صحة: 100,
-    صحة_قصوى: 100,
-    ذهب: 100,
-    فئة: "محارب",
-    احصائيات: {
-      هجوم: 10,
-      دفاع: 5
-    },
-    درع: {
-      مفعل: false,
-      نقاط: 0,
-      اقصى: 0
-    },
-    تدريب: 0,
-    اكثير: 0,
-    الجرد: [],
-    المهمة_الحالية: null
+    name: "محارب",
+    level: 1,
+    xp: 0,
+    health: 100,
+    maxHealth: 100,
+    gold: 100,
+    class: "محارب",
+    stats: { attack: 10, defense: 5 },
+    shield: { active: false, points: 0, max: 0 },
+    training: 0,
+    potions: 0,
+    inventory: [],
+    currentQuest: null
   };
 }
 
 // ------------------- التدريب -------------------
-function تدريب(شخصية) {
-  if (شخصية.ذهب < 50) return "لا تمتلك ذهب كافٍ للتدريب (50)";
-  شخصية.ذهب -= 50;
-  شخصية.احصائيات.هجوم += 2;
-  شخصية.احصائيات.دفاع += 1;
-  شخصية.تدريب += 1;
-  return `لقد تدربت بنجاح. مستوى التدريب الآن: ${شخصية.تدريب}`;
+function train(character) {
+  if (character.gold < 50) return "⛨ لا تمتلك ذهب كافٍ للتدريب (50)";
+  character.gold -= 50;
+  character.stats.attack += 2;
+  character.stats.defense += 1;
+  character.training += 1;
+  return `⚔ لقد تدربت بنجاح. مستوى التدريب الآن: ${character.training}`;
 }
 
 // ------------------- استخدام الإكسير -------------------
-function استخدم_الاكسيير(شخصية) {
-  if (شخصية.اكثير <= 0) return "ليس لديك أي إكسير للاستخدام";
-  شخصية.اكثير -= 1;
-  شخصية.صحة = شخصية.صحة_قصوى;
-  return "لقد استخدمت الإكسير وتعافيت بالكامل";
+function usePotion(character) {
+  if (character.potions <= 0) return "⛧ ليس لديك أي إكسير للاستخدام";
+  character.potions -= 1;
+  character.health = character.maxHealth;
+  return "✪ لقد استخدمت الإكسير وتعافيت بالكامل";
 }
 
 // ------------------- تفعيل الدرع -------------------
-function تفعيل_الدرع(شخصية) {
-  if (شخصية.درع.مفعل)
-    return "الدرع مفعل بالفعل";
+function activateShield(character) {
+  if (character.shield.active) return "🛡 الدرع مفعل بالفعل";
+  if (character.gold < 100) return "⛨ تحتاج 100 ذهب لتفعيل الدرع";
 
-  if (شخصية.ذهب < 100)
-    return "تحتاج 100 ذهب لتفعيل الدرع";
-
-  شخصية.ذهب -= 100;
-  شخصية.درع = {
-    مفعل: true,
-    نقاط: 3,
-    اقصى: 3
-  };
-
-  return "تم تفعيل الدرع. عدد نقاط الدرع: 3";
+  character.gold -= 100;
+  character.shield = { active: true, points: 3, max: 3 };
+  return "🛡 تم تفعيل الدرع. نقاط الدرع: 3";
 }
 
-// ------------------- الهجوم على لاعب -------------------
-function احصل_على_الهدف(event, البيانات) {
-  if (event.messageReply)
-    return البيانات[event.messageReply.senderID];
-
+// ------------------- الهجوم -------------------
+function getTarget(event, data) {
+  if (event.messageReply) return data[event.messageReply.senderID];
   const ids = Object.keys(event.mentions || {});
-  if (ids.length > 0)
-    return البيانات[ids[0]];
-
+  if (ids.length > 0) return data[ids[0]];
   return null;
 }
 
-function هجوم_لاعب(المهاجم, الهدف) {
-  if (!الهدف) return "حدد لاعبًا للهجوم (منشن أو رد)";
+function attackPlayer(attacker, target) {
+  if (!target) return "⛨ رد على شخص أو امنشنه للهجوم";
 
-  if (الهدف.درع.مفعل) {
-    الهدف.درع.نقاط -= 1;
-    if (الهدف.درع.نقاط <= 0) {
-      الهدف.درع.مفعل = false;
-      return "هاجمت اللاعب، الدرع انكسر وأصبح مكشوفًا";
+  if (target.shield.active) {
+    target.shield.points -= 1;
+    if (target.shield.points <= 0) {
+      target.shield.active = false;
+      return "⚔ هاجمت اللاعب، الدرع انكسر وأصبح مكشوفًا";
     }
-    return `هاجمت اللاعب لكن الدرع صد الهجوم\nنقاط الدرع المتبقية: ${الهدف.درع.نقاط}`;
+    return `⚔ هاجمت اللاعب لكن الدرع صد الهجوم\nنقاط الدرع المتبقية: ${target.shield.points}`;
   }
 
-  const ضرر = Math.max(
-    1,
-    المهاجم.احصائيات.هجوم - Math.floor(الهدف.احصائيات.دفاع / 2)
-  );
+  const damage = Math.max(1, attacker.stats.attack - Math.floor(target.stats.defense / 2));
+  target.health = clamp(target.health - damage, 0, target.maxHealth);
 
-  الهدف.صحة = اقفل_القيمة(الهدف.صحة - ضرر, 0, الهدف.صحة_قصوى);
+  let msg = `⚔ تم الهجوم بنجاح\n✪ الضرر: ${damage}\n❤️ صحة الهدف: ${target.health}/${target.maxHealth}`;
 
-  let رسالة = `تم الهجوم بنجاح\nالضرر: ${ضرر}\nصحة الهدف: ${الهدف.صحة}/${الهدف.صحة_قصوى}`;
-
-  if (الهدف.صحة <= 0) {
-    رسالة += `\nلقد قتلت اللاعب! تكسب نصف ذهب اللاعب: ${Math.floor(الهدف.ذهب / 2)}`;
-    المهاجم.ذهب += Math.floor(الهدف.ذهب / 2);
-    الهدف.ذهب = Math.floor(الهدف.ذهب / 2);
+  if (target.health <= 0) {
+    const loot = Math.floor(target.gold / 2);
+    attacker.gold += loot;
+    target.gold -= loot;
+    msg += `\n⛩ لقد قتلت اللاعب! تكسب نصف ذهبه: ${loot}`;
   }
 
-  return رسالة;
+  return msg;
 }
 
 // ------------------- المهام -------------------
-function مهمة(شخصية) {
-  const المهام = [
-    { اسم: "قتل الوحوش", مكافأة: 50, تجربة: 20 },
-    { اسم: "جمع الكنز", مكافأة: 100, تجربة: 30 },
-    { اسم: "إنقاذ القرية", مكافأة: 150, تجربة: 50 }
+function quest(character) {
+  const quests = [
+    { name: "قتل الوحوش", gold: 50, xp: 20 },
+    { name: "جمع الكنز", gold: 100, xp: 30 },
+    { name: "إنقاذ القرية", gold: 150, xp: 50 }
   ];
-  const م = المهام[Math.floor(Math.random() * المهام.length)];
-  شخصية.المهمة_الحالية = م;
-  شخصية.ذهب += م.مكافأة;
-  شخصية.تجربة += م.تجربة;
-  return `مهمة جديدة: ${م.اسم}\nالمكافأة: ${م.مكافأة} ذهب\nالتجربة: ${م.تجربة}`;
+  const q = quests[Math.floor(Math.random() * quests.length)];
+  character.currentQuest = q;
+  character.gold += q.gold;
+  character.xp += q.xp;
+  return `📜 مهمة جديدة: ${q.name}\n💰 المكافأة: ${q.gold} ذهب\n⭐ الخبرة: ${q.xp}`;
 }
 
 // ------------------- عرض معلومات الشخصية -------------------
-function معلومات_الشخصية(معرف, شخصية) {
+function showCharacterInfo(character) {
   return `
-=== معلومات شخصيتك ===
-الاسم: لاعب ${معرف.slice(-4)}
-الفئة: ${شخصية.فئة}
-المستوى: ${شخصية.مستوى}
-التجربة: ${شخصية.تجربة}/100
-الصحة: ${شخصية.صحة}/${شخصية.صحة_قصوى}
-الذهب: ${شخصية.ذهب}
-الجرد: ${شخصية.الجرد.length > 0 ? شخصية.الجرد.join(", ") : "فارغ"}
-مستوى التدريب: ${شخصية.تدريب}
-عدد الإكسير: ${شخصية.اكثير}
-درع مفعل: ${شخصية.درع.مفعل ? "نعم" : "لا"} (نقاط: ${شخصية.درع.نقاط})
-=======================
+⛨=== معلومات شخصيتك ===⛨
+الاسم: ${character.name}
+الفئة: ${character.class}
+المستوى: ${character.level}
+الخبرة: ${character.xp}/100
+الصحة: ${character.health}/${character.maxHealth}
+الذهب: ${character.gold}
+الجرد: ${character.inventory.length > 0 ? character.inventory.join(", ") : "فارغ"}
+مستوى التدريب: ${character.training}
+عدد الإكسير: ${character.potions}
+درع مفعل: ${character.shield.active ? "نعم" : "لا"} (نقاط: ${character.shield.points})
+⛨=======================⛨
 `;
 }
 
 // ------------------- الموديول -------------------
 module.exports.config = {
-  name: "ر.ب.ج",
-  version: "3.0.0",
+  name: "مقاتل",
+  version: "6.0.0",
   hasPermssion: 0,
-  credits: "Bot",
+  credits: "Bot + عباس",
   description: "لعبة RPG جماعية بالعربية مع هجوم بين اللاعبين ودرع",
   commandCategory: "ألعاب",
-  usages: "ر.ب.ج",
+  usages: "مقاتل",
   cooldowns: 3
 };
 
-module.exports.run = async function({ api, event }) {
+module.exports.run = async function({ api, event, args }) {
   const { threadID, messageID, senderID } = event;
-  const بيانات = تحميل_البيانات();
+  const data = loadData();
 
-  if (!بيانات[senderID]) {
-    بيانات[senderID] = انشاء_شخصية(senderID);
-    حفظ_البيانات(بيانات);
-    return api.sendMessage(
-      "مرحبًا بك في عالم RPG الجماعية!\nأوامر: info, تدريب, اكسيير, مهمة, درع, هاجم @اسم_اللاعب أو الرد على رسالته",
-      threadID,
-      messageID
-    );
+  // ----- تسجيل باسم محارب -----
+  if (!data[senderID]) {
+    if (!args || args[0].toLowerCase() !== "تسجيل") {
+      return api.sendMessage(
+        "⛨ يجب التسجيل أولاً\n✍️ اكتب: تسجيل",
+        threadID,
+        messageID
+      );
+    }
+
+    data[senderID] = createCharacter();
+    saveData(data);
+    return api.sendMessage("🛡 تم تسجيل شخصيتك باسم: محارب", threadID, messageID);
   }
 
-  const شخصية = بيانات[senderID];
-  return api.sendMessage(mعلومات_الشخصية(senderID, شخصية), threadID, messageID);
+  const character = data[senderID];
+
+  // بدون args → عرض الشخصية
+  if (!args || args.length === 0) {
+    return api.sendMessage(showCharacterInfo(character), threadID, messageID);
+  }
 };
 
-module.exports.handleReply = async function({ api, event }) {
-  const { threadID, messageID, senderID, body, mentions } = event;
-  const بيانات = تحميل_البيانات();
-  if (!بيانات[senderID]) return;
+module.exports.handleReply = async function({ api, event, body }) {
+  const { threadID, messageID, senderID } = event;
+  const data = loadData();
+  if (!data[senderID]) return;
 
-  const شخصية = بيانات[senderID];
-  const امر = body.toLowerCase().split(" ")[0];
+  const character = data[senderID];
+  const command = body.toLowerCase().split(" ")[0];
 
-  if (امر === "تدريب") {
-    const رسالة = تدريب(شخصية);
-    حفظ_البيانات(بيانات);
-    return api.sendMessage(رسالة, threadID, messageID);
+  if (command === "تدريب") {
+    const msg = train(character);
+    saveData(data);
+    return api.sendMessage(msg, threadID, messageID);
   }
 
-  if (امر === "اكسيير") {
-    const رسالة = استخدم_الاكسيير(شخصية);
-    حفظ_البيانات(بيانات);
-    return api.sendMessage(رسالة, threadID, messageID);
+  if (command === "اكسيير") {
+    const msg = usePotion(character);
+    saveData(data);
+    return api.sendMessage(msg, threadID, messageID);
   }
 
-  if (امر === "مهمة") {
-    const رسالة = مهمة(شخصية);
-    حفظ_البيانات(بيانات);
-    return api.sendMessage(رسالة, threadID, messageID);
+  if (command === "مهمة") {
+    const msg = quest(character);
+    saveData(data);
+    return api.sendMessage(msg, threadID, messageID);
   }
 
-  if (امر === "درع") {
-    const رسالة = تفعيل_الدرع(شخصية);
-    حفظ_البيانات(بيانات);
-    return api.sendMessage(رسالة, threadID, messageID);
+  if (command === "درع") {
+    const msg = activateShield(character);
+    saveData(data);
+    return api.sendMessage(msg, threadID, messageID);
   }
 
-  if (امر === "هاجم") {
-    const الهدف = احصل_على_الهدف(event, بيانات);
-    const رسالة = هجوم_لاعب(شخصية, الهدف);
-    حفظ_البيانات(بيانات);
-    return api.sendMessage(رسالة, threadID, messageID);
+  if (command === "هاجم") {
+    const target = getTarget(event, data);
+    const msg = attackPlayer(character, target);
+    saveData(data);
+    return api.sendMessage(msg, threadID, messageID);
   }
 };
