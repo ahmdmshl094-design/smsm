@@ -3,7 +3,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "بنك",
-  version: "1.7.0",
+  version: "1.8.0",
   hasPermssion: 0,
   credits: "عمر",
   description: "نظام بنك + تنقيب + عمل + تحويل + توب بالدولار باللهجة السودانية مع زخارف",
@@ -26,12 +26,12 @@ function حفظ_البيانات(المستخدمين) {
 }
 
 // ------------------- تسجيل الحساب -------------------
-function تسجيل_الحساب(senderID) {
+function تسجيل_الحساب(senderID, الاسم) {
   const المستخدمين = تحميل_البيانات();
   if (!المستخدمين.find(u => u.senderID == senderID)) {
-    المستخدمين.push({ senderID, money: 0, اخر_تنقيب: 0 });
+    المستخدمين.push({ senderID, name: الاسم || "لاعب " + senderID.slice(-4), money: 0, اخر_تنقيب: 0 });
     حفظ_البيانات(المستخدمين);
-    return "◉⊱ مبروك يا زول! اتسجلت في البنك بنجاح\n◉⊱ هسي ممكن تبدأ التنقيب والعمل وتحويل القروش بالدولار.";
+    return `◉⊱ مبروك يا ${الاسم || "زول"}! اتسجلت في البنك بنجاح\n◉⊱ هسي ممكن تبدأ التنقيب والعمل وتحويل القروش بالدولار.`;
   } else return "⧉ انت مسجل أصلاً في البنك يا زول";
 }
 
@@ -39,21 +39,27 @@ function تسجيل_الحساب(senderID) {
 function عرض_الرصيد(senderID) {
   const المستخدمين = تحميل_البيانات();
   const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
-  return "◉⊱ رصيدك الحالي في البنك: " + المستخدم.money + "$";
+  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل <اسمك>";
+  return `◉⊱ رصيدك الحالي في البنك يا ${المستخدم.name}: ${المستخدم.money}$`;
 }
 
 // ------------------- تنقيب -------------------
 function تنقيب(senderID, نوع) {
   const المستخدمين = تحميل_البيانات();
   const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
+  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل <اسمك>";
 
   const الان = Date.now();
   const cooldown = 10 * 60 * 1000; // 10 دقائق
   if (المستخدم.اخر_تنقيب && الان - المستخدم.اخر_تنقيب < cooldown) {
-    const دقيقة = Math.ceil((cooldown - (الان - المستخدم.اخر_تنقيب))/60000);
-    return "⧉ يا زول! انت عملت تنقيب قبل كده، استنى " + دقيقة + " دقيقة قبل ما تنقب تاني.";
+    const وقت_متبقي = cooldown - (الان - المستخدم.اخر_تنقيب);
+    if (وقت_متبقي > 60000) {
+      const دقيقة = Math.ceil(وقت_متبقي/60000);
+      return "⧉ يا زول! انت عملت تنقيب قبل كده، استنى " + دقيقة + " دقيقة قبل ما تنقب تاني.";
+    } else {
+      const ثانية = Math.ceil(وقت_متبقي/1000);
+      return "⧉ يا زول! استنى " + ثانية + " ثانية قبل ما تنقب تاني.";
+    }
   }
 
   let مبلغ = 0;
@@ -75,7 +81,7 @@ function تنقيب(senderID, نوع) {
 function العمل(senderID) {
   const المستخدمين = تحميل_البيانات();
   const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
+  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل <اسمك>";
 
   const الاعمال = [
     { نص: "نمت ليلة في الفراش وبعت القضية", مبلغ: Math.floor(Math.random()*200)+50 },
@@ -95,11 +101,12 @@ function العمل(senderID) {
 function تحويل(senderID, targetID, مبلغ) {
   const المستخدمين = تحميل_البيانات();
   const المرسل = المستخدمين.find(u => u.senderID == senderID);
-  if (!المرسل) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
+  if (!المرسل) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل <اسمك>";
   const المستفيد = المستخدمين.find(u => u.senderID == targetID);
   if (!المستفيد) return "⧉ العضو المستفيد ما عنده حساب في البنك";
 
   if (!مبلغ || isNaN(مبلغ) || مبلغ <= 0) return "⧉ يا زول، حدد مبلغ صحيح بالدولار";
+  if (senderID === targetID) return "⧉ ما ممكن تحول قروش لنفسك يا زول!";
   if (المرسل.money < مبلغ) return "⧉ رصيدك ما بكفي للتحويل";
 
   المرسل.money -= مبلغ;
@@ -118,8 +125,7 @@ function توب() {
   
   let رسالة = "◉⊱ قائمة أغنى المستخدمين:\n";
   ترتيب.slice(0,10).forEach((u, index) => {
-    const اسم = "لاعب " + u.senderID.slice(-4);
-    رسالة += `◉⊱ ${index+1}. ${اسم} → ${u.money}$\n`;
+    رسالة += `◉⊱ ${index+1}. ${u.name} → ${u.money}$\n`;
   });
 
   return رسالة;
@@ -130,36 +136,31 @@ module.exports.run = async function({ api, event, args, mentions }) {
   const { senderID, threadID, messageID } = event;
   const امر = args[0];
 
-  if (!امر) return api.sendMessage("◉⊱ يا زول اكتب أمر: تسجيل، عرض، تنقيب، عمل، حول، توب", threadID, messageID);
-
   let رسالة = "";
 
-  switch(امر) {
-    case "تسجيل":
-      رسالة = تسجيل_الحساب(senderID); break;
-    case "عرض":
-      رسالة = عرض_الرصيد(senderID); break;
-    case "تنقيب":
-    case "تنقيب كبير":
-    case "تنقيب ضخم":
-      رسالة = تنقيب(senderID, امر); break;
-    case "عمل":
-      رسالة = العمل(senderID); break;
-    case "حول":
-      if (!args[2] || isNaN(parseInt(args[2]))) {
-        رسالة = "⧉ اكتب: حول @الشخص المبلغ بالدولار"; break;
+  // تسجيل المستخدم باسم محدد
+  if (امر === "بنك" && args[1] === "تسجيل") {
+    const الاسم = args.slice(2).join(" ");
+    رسالة = تسجيل_الحساب(senderID, الاسم || ("لاعب " + senderID.slice(-4)));
+  } else {
+    // باقي الأوامر بدون كلمة بنك
+    const الاوامر = {
+      تسجيل: () => "⧉ لتسجيل الحساب، اكتب: بنك تسجيل <اسمك>",
+      عرض: () => عرض_الرصيد(senderID),
+      "تنقيب": () => تنقيب(senderID, "تنقيب"),
+      "تنقيب كبير": () => تنقيب(senderID, "تنقيب كبير"),
+      "تنقيب ضخم": () => تنقيب(senderID, "تنقيب ضخم"),
+      عمل: () => العمل(senderID),
+      توب: () => توب(),
+      حول: () => {
+        if (!args[1] || isNaN(parseInt(args[1]))) return "⧉ اكتب: حول @الشخص المبلغ بالدولار";
+        const targetID = Object.keys(mentions)[0];
+        if (!targetID) return "⧉ ضع منشن للشخص اللي عايز تحول ليه القروش";
+        return تحويل(senderID, targetID, parseInt(args[1]));
       }
-      const targetID = Object.keys(mentions)[0];
-      if (!targetID) {
-        رسالة = "⧉ ضع منشن للشخص اللي عايز تحول ليه القروش"; break;
-      }
-      رسالة = تحويل(senderID, targetID, parseInt(args[2]));
-      break;
-    case "توب":
-      رسالة = توب(); break;
-    default:
-      رسالة = "⧉ الأمر ما معروف. استعمل: تسجيل، عرض، تنقيب، عمل، حول، توب";
+    };
+    رسالة = (الاوامر[امر]) ? الاوامر[امر]() : "⧉ الأمر ما معروف. استعمل: تسجيل، عرض، تنقيب، عمل، حول، توب";
   }
 
   return api.sendMessage(رسالة, threadID, messageID);
-}
+                     }
