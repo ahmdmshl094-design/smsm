@@ -3,7 +3,7 @@ const path = require("path");
 
 module.exports.config = {
   name: "بنك",
-  version: "1.8.0",
+  version: "1.9.0",
   hasPermssion: 0,
   credits: "عمر",
   description: "نظام بنك + تنقيب + عمل + تحويل + توب بالدولار باللهجة السودانية مع زخارف",
@@ -12,17 +12,23 @@ module.exports.config = {
   cooldowns: 0
 };
 
-const pathData = path.join(__dirname, 'banking', 'banking.json');
+const bankingDir = path.join(__dirname, 'banking');
+const pathData = path.join(bankingDir, 'banking.json');
 
 // ------------------- تحميل البيانات -------------------
 function تحميل_البيانات() {
+  if (!fs.existsSync(bankingDir)) fs.mkdirSync(bankingDir);
   if (!fs.existsSync(pathData)) fs.writeFileSync(pathData, "[]", "utf-8");
   return JSON.parse(fs.readFileSync(pathData, "utf-8"));
 }
 
 // ------------------- حفظ البيانات -------------------
 function حفظ_البيانات(المستخدمين) {
-  fs.writeFileSync(pathData, JSON.stringify(المستخدمين, null, 2));
+  try {
+    fs.writeFileSync(pathData, JSON.stringify(المستخدمين, null, 2));
+  } catch (err) {
+    console.error("حدث خطأ أثناء حفظ البيانات:", err);
+  }
 }
 
 // ------------------- تسجيل الحساب -------------------
@@ -105,7 +111,8 @@ function تحويل(senderID, targetID, مبلغ) {
   const المستفيد = المستخدمين.find(u => u.senderID == targetID);
   if (!المستفيد) return "⧉ العضو المستفيد ما عنده حساب في البنك";
 
-  if (!مبلغ || isNaN(مبلغ) || مبلغ <= 0) return "⧉ يا زول، حدد مبلغ صحيح بالدولار";
+  مبلغ = Math.floor(mبلغ);
+  if (!مبلغ || مبلغ <= 0) return "⧉ يا زول، حدد مبلغ صحيح بالدولار";
   if (senderID === targetID) return "⧉ ما ممكن تحول قروش لنفسك يا زول!";
   if (المرسل.money < مبلغ) return "⧉ رصيدك ما بكفي للتحويل";
 
@@ -122,7 +129,6 @@ function توب() {
   if (المستخدمين.length === 0) return "⧉ ما في زول مسجل حتى الآن";
 
   const ترتيب = [...المستخدمين].sort((a,b) => b.money - a.money);
-  
   let رسالة = "◉⊱ قائمة أغنى المستخدمين:\n";
   ترتيب.slice(0,10).forEach((u, index) => {
     رسالة += `◉⊱ ${index+1}. ${u.name} → ${u.money}$\n`;
@@ -134,18 +140,17 @@ function توب() {
 // ------------------- الدالة الرئيسية -------------------
 module.exports.run = async function({ api, event, args, mentions }) {
   const { senderID, threadID, messageID } = event;
-  const امر = args[0];
+  const امر = args[0]?.toLowerCase();
 
   let رسالة = "";
 
-  // تسجيل المستخدم باسم محدد
-  if (امر === "بنك" && args[1] === "تسجيل") {
-    const الاسم = args.slice(2).join(" ");
+  // ---------------- تسجيل المستخدم ----------------
+  if ((امر === "تسجيل") || (امر === "بنك" && args[1]?.toLowerCase() === "تسجيل")) {
+    const الاسم = (امر === "تسجيل" ? args.slice(1) : args.slice(2)).join(" ");
     رسالة = تسجيل_الحساب(senderID, الاسم || ("لاعب " + senderID.slice(-4)));
   } else {
-    // باقي الأوامر بدون كلمة بنك
+    // ---------------- باقي الأوامر ----------------
     const الاوامر = {
-      تسجيل: () => "⧉ لتسجيل الحساب، اكتب: بنك تسجيل <اسمك>",
       عرض: () => عرض_الرصيد(senderID),
       "تنقيب": () => تنقيب(senderID, "تنقيب"),
       "تنقيب كبير": () => تنقيب(senderID, "تنقيب كبير"),
@@ -163,4 +168,4 @@ module.exports.run = async function({ api, event, args, mentions }) {
   }
 
   return api.sendMessage(رسالة, threadID, messageID);
-                     }
+};
