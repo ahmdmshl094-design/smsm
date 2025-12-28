@@ -2,62 +2,58 @@ const fs = require("fs-extra");
 const path = require("path");
 
 module.exports.config = {
-  name:"اوامر",
-  version: "1.0.8",
+  name: "اوامر",
+  version: "1.1.4",
   hasPermssion: 0,
-  credits: "المطور: انجالاتي | الادمن: ثانوس",
-  description: "🦧اوامري",
+  credits: "انجالاتي",
+  description: "قائمة الاوامر",
   commandCategory: "الاوامر",
   usages: "[صفحة]",
-  cooldowns: 5,
-  envConfig: {
-    autoUnsend: true,
-    delayUnsend: 20
-  }
+  cooldowns: 5
 };
 
 module.exports.run = async function({ api, event, args }) {
   const { threadID, messageID } = event;
   const commands = [...global.client.commands.values()];
-  const prefix = global.config.PREFIX || "/";
 
-  const commandsPerPage = 10;
+  const commandsPerPage = 6;
   const page = parseInt(args[0]) || 1;
   const totalPages = Math.ceil(commands.length / commandsPerPage);
 
-  if(page > totalPages || page < 1) {
-    return api.sendMessage(`❌ هذه الصفحة غير موجودة! الصفحات المتوفرة: 1-${totalPages}`, threadID, messageID);
+  if (page < 1 || page > totalPages) {
+    return api.sendMessage(
+      `الصفحة غير موجودة (1 - ${totalPages})`,
+      threadID,
+      messageID
+    );
   }
 
   const start = (page - 1) * commandsPerPage;
-  const end = start + commandsPerPage;
-  const pageCommands = commands.slice(start, end);
-
-  const divider = "─❖─";
-  const line = "──────────────────────";
+  const pageCommands = commands.slice(start, start + commandsPerPage);
 
   let message = `
-${line}
-        ◈『 ⚔ اوامر ⚔ 』◈
-${line}\n`;
+قائمة الاوامر
+────────
 
-  pageCommands.forEach((cmd, index) => {
-    message += `⚜ ${start + index + 1} ${divider} ${prefix}${cmd.config.name}\n`;
+`;
+
+  pageCommands.forEach(cmd => {
+    message += `${cmd.config.name}\n`;
   });
 
   message += `
-${line}
-🔹 الصفحة: ${page} من ${totalPages}
-🔹 عدد الأوامر الكلي: ${commands.length}
+────────
+${page}/${totalPages}
+عدد الاوامر: ${commands.length}
 
-🏰 استمتع مع بوت هياتو 🏰
-
-⚜ المطور: انجالاتي ⚜
-👑 الادمن: ثانوس 👑
-${line}
+هياتو بوت
 `;
 
-  const imagePath = path.join(process.cwd(), "attached_assets", "received_1354469396415619_1765356692054.jpeg");
+  const imagePath = path.join(
+    process.cwd(),
+    "attached_assets",
+    "received_1354469396415619_1765356692054.jpeg"
+  );
 
   try {
     if (fs.existsSync(imagePath)) {
@@ -66,10 +62,9 @@ ${line}
         threadID,
         messageID
       );
-    } else {
-      return api.sendMessage(message, threadID, messageID);
     }
-  } catch (error) {
+    return api.sendMessage(message, threadID, messageID);
+  } catch {
     return api.sendMessage(message, threadID, messageID);
   }
 };
