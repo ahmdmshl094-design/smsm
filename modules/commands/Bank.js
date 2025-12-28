@@ -1,115 +1,165 @@
+const fs = require("fs-extra");
+const path = require("path");
+
 module.exports.config = {
   name: "بنك",
-  version: "0.0.1",
+  version: "1.7.0",
   hasPermssion: 0,
   credits: "عمر",
-  description: "",
+  description: "نظام بنك + تنقيب + عمل + تحويل + توب بالدولار باللهجة السودانية مع زخارف",
   commandCategory: "الاموال",
-  usages: "سحب/ايداع/عرض/تسجيل/منح",
-  cooldowns: 0,
-  dependencies: {
-    "fs-extra": "",
-    "request": "",
-    "axios": ""
-  },
-  envConfig: {
-    APIKEY: "chinhdz"
-  }  
+  usages: "تسجيل/عرض/تنقيب/عمل/حول/توب",
+  cooldowns: 0
 };
 
-module.exports.onLoad = async () => {
-  const { existsSync, writeFileSync, mkdirSync } = require("fs-extra")
-  const { join } = require("path")
-  const dir = __dirname + `/banking`;
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const pathData = join(__dirname + '/banking/banking.json');
-  if (!existsSync(pathData)) return writeFileSync(pathData, "[]", "utf-8"); 
-  return;
+const pathData = path.join(__dirname, 'banking', 'banking.json');
+
+// ------------------- تحميل البيانات -------------------
+function تحميل_البيانات() {
+  if (!fs.existsSync(pathData)) fs.writeFileSync(pathData, "[]", "utf-8");
+  return JSON.parse(fs.readFileSync(pathData, "utf-8"));
 }
 
-module.exports.run = async function({ api, event, args, Currencies }) {
-  const { threadID, messageID, senderID } = event;
-  const { readFileSync, writeFileSync } = require("fs-extra")
-  const { join } = require("path")
-  const pathData = join(__dirname + '/banking/banking.json');
-  const user = require('./banking/banking.json');
-  const timeIM = 60*60
-  const laisuat = 0.05
-  const moneyInput = parseInt(args[1])
+// ------------------- حفظ البيانات -------------------
+function حفظ_البيانات(المستخدمين) {
+  fs.writeFileSync(pathData, JSON.stringify(المستخدمين, null, 2));
+}
 
-  // تسجيل الحساب
-  if(args[0] == 'تسجيل' || args[0] == 'register') {
-    if (!user.find(i => i.senderID == senderID)) {
-      var add = { senderID: senderID,  money: 0 }
-      user.push(add);
-      writeFileSync(pathData, JSON.stringify(user, null, 2));
-      return api.sendMessage(`[ بنك سيستا ] » لقد قمت بالتسجيل بنجاح \n قم بإيداع 200 دولار على الأقل لجني الأرباح💰`, threadID, messageID)
-    } else return api.sendMessage(`[ بنك سيستا ] » لديك بالفعل حساب على نظام البنك 🏦`, threadID, messageID)
+// ------------------- تسجيل الحساب -------------------
+function تسجيل_الحساب(senderID) {
+  const المستخدمين = تحميل_البيانات();
+  if (!المستخدمين.find(u => u.senderID == senderID)) {
+    المستخدمين.push({ senderID, money: 0, اخر_تنقيب: 0 });
+    حفظ_البيانات(المستخدمين);
+    return "◉⊱ مبروك يا زول! اتسجلت في البنك بنجاح\n◉⊱ هسي ممكن تبدأ التنقيب والعمل وتحويل القروش بالدولار.";
+  } else return "⧉ انت مسجل أصلاً في البنك يا زول";
+}
+
+// ------------------- عرض الرصيد -------------------
+function عرض_الرصيد(senderID) {
+  const المستخدمين = تحميل_البيانات();
+  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
+  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
+  return "◉⊱ رصيدك الحالي في البنك: " + المستخدم.money + "$";
+}
+
+// ------------------- تنقيب -------------------
+function تنقيب(senderID, نوع) {
+  const المستخدمين = تحميل_البيانات();
+  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
+  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
+
+  const الان = Date.now();
+  const cooldown = 10 * 60 * 1000; // 10 دقائق
+  if (المستخدم.اخر_تنقيب && الان - المستخدم.اخر_تنقيب < cooldown) {
+    const دقيقة = Math.ceil((cooldown - (الان - المستخدم.اخر_تنقيب))/60000);
+    return "⧉ يا زول! انت عملت تنقيب قبل كده، استنى " + دقيقة + " دقيقة قبل ما تنقب تاني.";
   }
 
-  // عرض الرصيد
-  if(args[0] == 'check' || args[0] == 'عرض') {
-    if (!user.find(i => i.senderID == senderID)) return api.sendMessage('[ بنك سيستا ] » انت مل مسجل بالبنك سجل وتعال 🏦', threadID, messageID)
-    else { 
-      var userData = user.find(i => i.senderID == senderID);
-      return api.sendMessage(`[ بنك سيستا ] » المبلغ الذي تودع به بنك سيستا هو: ${userData.money}$\n\n💷 الفائده: +${laisuat}% كل ${timeIM/60} دقيقة`, threadID, messageID)
-    }
-  } 
-
-  // إيداع
-  if(args[0] == 'ايداع' || args[0] == 'send') {
-    if (!args[1] || isNaN(args[1]) || parseInt(args[1]) < 50) return api.sendMessage("[ بنك سيستا ] »يجب أن يكون مبلغ الإيداع رقمًا واحدًا وأكبر من 50 دولارًا 💰", threadID, messageID);
-    if (!user.find(i => i.senderID == senderID)) return api.sendMessage('[ بنك سيستا ] »  اكتب (بنك تسجيل) حتى تسجل بالبنك وتعرض فلوسك + نسبة الفئدة 💰', threadID, messageID)
-    else { 
-      let balance = (await Currencies.getData(senderID)).money;
-      if(balance < moneyInput) return api.sendMessage(`[ بنك سيستا ] » رصيدك غير كاف ${moneyInput} للإيداع في بنك سيستا 💰 `, threadID, messageID)
-      var userData = user.find(i => i.senderID == senderID);
-      var money = userData.money;
-      userData.money = parseInt(money) + parseInt(moneyInput)
-      writeFileSync(pathData, JSON.stringify(user, null, 2));
-      await Currencies.decreaseMoney(senderID, parseInt(moneyInput));
-      return api.sendMessage(`[ بنك سيستا ] » لقد قمت بأيداع  ${moneyInput}$ في بنك سيستا\n\n💷 الفائده: +${laisuat}% في ${timeIM/60} دقيقة`, threadID, messageID)
-    }
+  let مبلغ = 0;
+  switch (نوع) {
+    case "تنقيب": مبلغ = Math.floor(Math.random() * 100) + 50; break;
+    case "تنقيب كبير": مبلغ = Math.floor(Math.random() * 200) + 150; break;
+    case "تنقيب ضخم": مبلغ = Math.floor(Math.random() * 500) + 400; break;
+    default: return "⧉ اختار نوع التنقيب: تنقيب، تنقيب كبير، تنقيب ضخم";
   }
 
-  // سحب
-  if(args[0] == 'rút' || args[0] == 'سحب') { 
-    if (!args[1] || isNaN(args[1]) || parseInt(args[1]) < 50) return api.sendMessage("[ بنك سيستا ] » لازم تكتب رقم واكثر من 50 دولار . ", threadID, messageID);
-    if (!user.find(i => i.senderID == senderID)) return api.sendMessage('[ بنك سيستا ] »  اكتب (بنك تسجيل) حتى تسجل بالبنك وتعرض فلوسك + نسبة الفئدة 💰', threadID, messageID)
-    else {  
-      var userData = user.find(i => i.senderID == senderID); 
-      var money = userData.money;
-      if(parseInt(money) < parseInt(moneyInput)) return api.sendMessage('[ بنك سيستا ] » رصيدك لا يكفي لإجراء هذه الصفقة!', threadID, messageID)
-      else {
-        await Currencies.increaseMoney(senderID, parseInt(moneyInput));
-        userData.money = parseInt(money) - parseInt(moneyInput)
-        writeFileSync(pathData, JSON.stringify(user, null, 2));
-        return api.sendMessage(`[ بنك سيستا ] »تم سحب  ${parseInt(moneyInput)}$ بنجاح \n الرصيد المتبقي هو ${userData.money}$`, threadID, messageID)
+  المستخدم.money += مبلغ;
+  المستخدم.اخر_تنقيب = الان;
+  حفظ_البيانات(المستخدمين);
+
+  return "◉⊱ عملت " + نوع + " وكسبت " + مبلغ + "$ دولار يا زول\n◉⊱ رصيدك هسي: " + المستخدم.money + "$";
+}
+
+// ------------------- العمل -------------------
+function العمل(senderID) {
+  const المستخدمين = تحميل_البيانات();
+  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
+  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
+
+  const الاعمال = [
+    { نص: "نمت ليلة في الفراش وبعت القضية", مبلغ: Math.floor(Math.random()*200)+50 },
+    { نص: "شتغلت قونة لفنان وحصلت على كدا", مبلغ: Math.floor(Math.random()*250)+80 },
+    { نص: "شتغلت في بيت فدادية وبعت 40 جالون عرقي", مبلغ: Math.floor(Math.random()*300)+100 },
+    { نص: "وصلت الطلبات لعدة زبائن وكسبت قروش", مبلغ: Math.floor(Math.random()*150)+50 }
+  ];
+
+  const العمل_المختار = الاعمال[Math.floor(Math.random()*الاعمال.length)];
+  المستخدم.money += العمل_المختار.مبلغ;
+  حفظ_البيانات(المستخدمين);
+
+  return `◉⊱ ${العمل_المختار.نص}\n◉⊱ كسبت ${العمل_المختار.مبلغ}$ دولار يا زول\n◉⊱ رصيدك هسي: ${المستخدم.money}$`;
+}
+
+// ------------------- التحويل بين المستخدمين -------------------
+function تحويل(senderID, targetID, مبلغ) {
+  const المستخدمين = تحميل_البيانات();
+  const المرسل = المستخدمين.find(u => u.senderID == senderID);
+  if (!المرسل) return "⧉ يا زول لازم تسجل أولاً: بنك تسجيل";
+  const المستفيد = المستخدمين.find(u => u.senderID == targetID);
+  if (!المستفيد) return "⧉ العضو المستفيد ما عنده حساب في البنك";
+
+  if (!مبلغ || isNaN(مبلغ) || مبلغ <= 0) return "⧉ يا زول، حدد مبلغ صحيح بالدولار";
+  if (المرسل.money < مبلغ) return "⧉ رصيدك ما بكفي للتحويل";
+
+  المرسل.money -= مبلغ;
+  المستفيد.money += مبلغ;
+  حفظ_البيانات(المستخدمين);
+
+  return "◉⊱ حولت " + مبلغ + "$ دولار للعضو المحدد\n◉⊱ رصيدك هسي: " + المرسل.money + "$";
+}
+
+// ------------------- عرض التوب -------------------
+function توب() {
+  const المستخدمين = تحميل_البيانات();
+  if (المستخدمين.length === 0) return "⧉ ما في زول مسجل حتى الآن";
+
+  const ترتيب = [...المستخدمين].sort((a,b) => b.money - a.money);
+  
+  let رسالة = "◉⊱ قائمة أغنى المستخدمين:\n";
+  ترتيب.slice(0,10).forEach((u, index) => {
+    const اسم = "لاعب " + u.senderID.slice(-4);
+    رسالة += `◉⊱ ${index+1}. ${اسم} → ${u.money}$\n`;
+  });
+
+  return رسالة;
+}
+
+// ------------------- الدالة الرئيسية -------------------
+module.exports.run = async function({ api, event, args, mentions }) {
+  const { senderID, threadID, messageID } = event;
+  const امر = args[0];
+
+  if (!امر) return api.sendMessage("◉⊱ يا زول اكتب أمر: تسجيل، عرض، تنقيب، عمل، حول، توب", threadID, messageID);
+
+  let رسالة = "";
+
+  switch(امر) {
+    case "تسجيل":
+      رسالة = تسجيل_الحساب(senderID); break;
+    case "عرض":
+      رسالة = عرض_الرصيد(senderID); break;
+    case "تنقيب":
+    case "تنقيب كبير":
+    case "تنقيب ضخم":
+      رسالة = تنقيب(senderID, امر); break;
+    case "عمل":
+      رسالة = العمل(senderID); break;
+    case "حول":
+      if (!args[2] || isNaN(parseInt(args[2]))) {
+        رسالة = "⧉ اكتب: حول @الشخص المبلغ بالدولار"; break;
       }
-    }
+      const targetID = Object.keys(mentions)[0];
+      if (!targetID) {
+        رسالة = "⧉ ضع منشن للشخص اللي عايز تحول ليه القروش"; break;
+      }
+      رسالة = تحويل(senderID, targetID, parseInt(args[2]));
+      break;
+    case "توب":
+      رسالة = توب(); break;
+    default:
+      رسالة = "⧉ الأمر ما معروف. استعمل: تسجيل، عرض، تنقيب، عمل، حول، توب";
   }
 
-  // منح المال من المطور
-  if(args[0] == 'منح' && senderID == '61570782968645') {
-    if (!args[1] || isNaN(args[1])) return api.sendMessage("[ بنك سيستا ] » اكتب المبلغ الذي تريد منحه.", threadID, messageID);
-    let targetID = args[2];
-    if(!targetID) return api.sendMessage("[ بنك سيستا ] » حدد العضو المستفيد", threadID, messageID);
-    const amount = parseInt(args[1]);
-    let targetUser = user.find(u => u.senderID == targetID);
-    if(!targetUser) {
-      targetUser = { senderID: targetID, money: 0 };
-      user.push(targetUser);
-    }
-    targetUser.money += amount;
-    writeFileSync(pathData, JSON.stringify(user, null, 2));
-    return api.sendMessage(
-      `💰 تم تحويل المبلغ من المطور\n` +
-      `🔹 المبلغ: ${amount}$\n` +
-      `✅ حسابك تم تعبئته بنجاح\n` +
-      `استلم يا شحاد ☝🏿🐸`,
-      threadID
-    )
-  }
-
-  else return api.sendMessage(`=====🏦 بنك سيستا 🏦=====\n\n[بنك تسجيل] - سجل لإيداع الأموال في بنك سيستا💹\n[بنك عرض] - عرض المبلغ في بنك سيستا💳\n[بنك ايداع] - الإيداع في بنك سيستا💷\n[بنك سحب] - سحب الأموال من بنك سيستا\n\n💲 معدل الفائدة الحالي: +${laisuat}% في ${timeIM/60} هذه اللحظه`, threadID, messageID)
-    }
+  return api.sendMessage(رسالة, threadID, messageID);
+}
