@@ -1,31 +1,30 @@
 const fs = require("fs");
-const path = require("path");
-const dataFile = path.join(__dirname, "armyData.json");
+const path = require("armyData.json");
 
 /* ================== DATA ================== */
 function loadData() {
-  if (!fs.existsSync(dataFile)) fs.writeFileSync(dataFile, "{}");
-  try { return JSON.parse(fs.readFileSync(dataFile)); } catch { return {}; }
+  if (!fs.existsSync(path)) fs.writeFileSync(path, "{}");
+  try { return JSON.parse(fs.readFileSync(path)); } catch { return {}; }
 }
 function saveData(data) {
-  fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+  fs.writeFileSync(path, JSON.stringify(data, null, 2));
 }
 const now = () => Date.now();
 
 /* ================== REGIONS ================== */
 const regions = [
-  { name: "🏜️ الصحراء", army: 60, defense: 30, gold: 80 },
-  { name: "🌲 الغابة", army: 90, defense: 45, gold: 120 },
-  { name: "🏔️ الجبال", army: 120, defense: 60, gold: 200 }
+  { name: "الصحراء", army: 60, defense: 30, gold: 80 },
+  { name: "الغابة", army: 90, defense: 45, gold: 120 },
+  { name: "الجبال", army: 120, defense: 60, gold: 200 }
 ];
 
 /* ================== CONFIG ================== */
 module.exports.config = {
   name: "جيشي",
-  version: "5.0.0",
+  version: "6.0.0",
   hasPermssion: 0,
   credits: "انجالاتي",
-  description: "نظام حروب شامل (نووي – منشآت – أبحاث – تجسس – سوق)",
+  description: "نظام حروب شامل مع تدريب وهجوم على اللاعبين",
   commandCategory: "war",
   usages: "جيشي",
   cooldowns: 3
@@ -33,7 +32,7 @@ module.exports.config = {
 
 /* ================== RUN ================== */
 module.exports.run = async ({ api, event, args }) => {
-  const { threadID, messageID, senderID, mentions } = event;
+  const { threadID, messageID, senderID, mentions, messageReply } = event;
   let data = loadData();
 
   /* ===== تسجيل ===== */
@@ -50,34 +49,29 @@ module.exports.run = async ({ api, event, args }) => {
       gold: 300,
       nukes: 0,
       research: 0,
+      shield: 0, // قوة الدرع
       shieldUntil: 0,
       lastDaily: 0,
-      buildings: { base: 1, factory: 0, reactor: 0 }
+      buildings: { base: 1, factory: 0, reactor: 0 },
+      trainingCooldown: 0
     };
     saveData(data);
     return api.sendMessage("🪖 تم تسجيل جيشك بنجاح!", threadID, messageID);
   }
 
   const army = data[senderID];
-  const shieldActive = army.shieldUntil > now();
+  const shieldActive = army.shield > 0;
 
-  /* ===== عرض ===== */
+  /* ===== عرض الجيش ===== */
   if (!args[0]) {
     return api.sendMessage(
-`⚔️ جيشك
+`◉⊱  جيشك  ⊰◉
 ━━━━━━━━━━━━━━
-👥 الجنود: ${army.soldiers}
-⚔️ القوة: ${army.power}
-🛡️ الدفاع: ${army.defense}
-☢️ نووي: ${army.nukes}
-🔬 أبحاث: ${army.research}
-🛡️ درع نشط: ${shieldActive ? "نعم" : "لا"}
-💰 الذهب: ${army.gold}
-
-🏗️ المنشآت:
-🏰 قواعد: ${army.buildings.base}
-🏭 مصانع: ${army.buildings.factory}
-⚡ مفاعلات: ${army.buildings.reactor}
+◉⊱ الجنود: ${army.soldiers}
+◉⊱ القوة: ${army.power}
+◉⊱ الدفاع: ${army.defense}
+◉⊱ الذهب: ${army.gold}
+◉⊱ الدرع: ${army.shield}
 ━━━━━━━━━━━━━━`,
       threadID,
       messageID
@@ -95,95 +89,55 @@ module.exports.run = async ({ api, event, args }) => {
     return api.sendMessage(`🎁 استلمت ${income} ذهب`, threadID, messageID);
   }
 
-  /* ===== بناء ===== */
-  if (args[0] === "بناء") {
-    const type = args[1];
-    const cost = { قاعدة:150, مصنع:200, مفاعل:300 };
-    if (!cost[type]) return api.sendMessage("❌ اختر: قاعدة / مصنع / مفاعل", threadID, messageID);
-    if (army.gold < cost[type]) return api.sendMessage("❌ ذهب غير كافي", threadID, messageID);
-
-    army.gold -= cost[type];
-    if (type === "قاعدة") { army.buildings.base++; army.defense += 5; }
-    if (type === "مصنع") { army.buildings.factory++; army.power += 5; }
-    if (type === "مفاعل") army.buildings.reactor++;
+  /* ===== تدريب ===== */
+  if (args[0] === "تدريب") {
+    if (now() - army.trainingCooldown < 600000) // 10 دقائق
+      return api.sendMessage("⏳ التدريب يحتاج 10 دقائق بين كل مرة", threadID, messageID);
+    const gain = Math.floor(Math.random() * 10) + 5;
+    army.power += gain;
+    army.soldiers += Math.floor(Math.random() * 5) + 1;
+    army.trainingCooldown = now();
     saveData(data);
-    return api.sendMessage(`🏗️ تم بناء ${type}`, threadID, messageID);
-  }
-
-  /* ===== بحث ===== */
-  if (args[0] === "بحث") {
-    if (army.gold < 200) return api.sendMessage("❌ تحتاج 200 ذهب", threadID, messageID);
-    army.gold -= 200;
-    army.research++;
-    army.power += 3;
-    army.defense += 2;
-    saveData(data);
-    return api.sendMessage("🔬 تم تطوير أبحاث عسكرية", threadID, messageID);
-  }
-
-  /* ===== تجنيد ===== */
-  if (args[0] === "تجنيد") {
-    const add = Math.floor(Math.random() * 20) + 10;
-    army.soldiers += add;
-    saveData(data);
-    return api.sendMessage(`🪖 تم تجنيد ${add} جندي`, threadID, messageID);
+    return api.sendMessage(`💪 تدريبت جيشك! القوة زادت ${gain} والجنود ${Math.floor(Math.random()*5)+1}`, threadID, messageID);
   }
 
   /* ===== درع ===== */
   if (args[0] === "دفاع") {
     if (army.gold < 100) return api.sendMessage("❌ تحتاج 100 ذهب", threadID, messageID);
     army.gold -= 100;
-    army.shieldUntil = now() + 30 * 60 * 1000;
+    army.shield += 50; // الدرع يبدأ بـ 50 قوة
     saveData(data);
-    return api.sendMessage("🛡️ تم تفعيل الدرع لمدة 30 دقيقة", threadID, messageID);
+    return api.sendMessage("🛡️ تم تفعيل الدرع. سينقص مع كل هجوم!", threadID, messageID);
   }
 
-  /* ===== نووي ===== */
-  if (args[0] === "نووي") {
-    if (args[1] === "تصنيع") {
-      if (army.gold < 500) return api.sendMessage("❌ تحتاج 500 ذهب", threadID, messageID);
-      army.gold -= 500;
-      army.nukes++;
-      saveData(data);
-      return api.sendMessage("☢️ تم تصنيع صاروخ نووي", threadID, messageID);
+  /* ===== هجوم على لاعب ===== */
+  if (args[0] === "هاجم") {
+    let targetID;
+    if (Object.keys(mentions).length) targetID = Object.keys(mentions)[0];
+    else if (messageReply) targetID = messageReply.senderID;
+    if (!targetID) return api.sendMessage("❌ امنشن اللاعب أو رد على رسالته للهجوم", threadID, messageID);
+    if (!data[targetID]) return api.sendMessage("❌ اللاعب غير مسجل", threadID, messageID);
+    if (targetID === senderID) return api.sendMessage("❌ لا يمكنك مهاجمة نفسك", threadID, messageID);
+
+    const enemy = data[targetID];
+    let attackPower = army.power;
+    let damage = Math.max(0, attackPower - enemy.defense);
+
+    // الدرع ينقص أولاً
+    if (enemy.shield > 0) {
+      if (enemy.shield >= damage) {
+        enemy.shield -= damage;
+        damage = 0;
+      } else {
+        damage -= enemy.shield;
+        enemy.shield = 0;
+      }
     }
 
-    if (args[1] === "استخدام") {
-      if (army.nukes < 1) return api.sendMessage("❌ لا تملك نووي", threadID, messageID);
-      if (!Object.keys(mentions).length) return api.sendMessage("❌ منشن لاعب", threadID, messageID);
+    enemy.soldiers = Math.max(0, enemy.soldiers - damage);
+    saveData(data);
 
-      const enemyID = Object.keys(mentions)[0];
-      if (!data[enemyID]) return api.sendMessage("❌ اللاعب غير مسجل", threadID, messageID);
-
-      const enemy = data[enemyID];
-      enemy.soldiers = Math.max(0, enemy.soldiers - 50);
-      enemy.power = Math.max(0, enemy.power - 10);
-      enemy.defense = Math.max(0, enemy.defense - 10);
-      army.nukes--;
-      saveData(data);
-
-      return api.sendMessage(`☢️ تم ضرب ${mentions[enemyID]} نوويًا!`, threadID, messageID);
-    }
-  }
-
-  /* ===== حصار ===== */
-  if (args[0] === "حصار") {
-    const name = args.slice(1).join(" ");
-    const r = regions.find(x => x.name.includes(name));
-    if (!r) return api.sendMessage("❌ منطقة غير موجودة", threadID, messageID);
-
-    const p1 = army.soldiers + army.power;
-    const p2 = r.army + r.defense;
-    if (p1 > p2) {
-      army.gold += r.gold;
-      army.soldiers -= 5;
-      saveData(data);
-      return api.sendMessage(`🏰 تم احتلال ${r.name}`, threadID, messageID);
-    } else {
-      army.soldiers = Math.max(0, army.soldiers - 15);
-      saveData(data);
-      return api.sendMessage("💥 فشل الحصار", threadID, messageID);
-    }
+    return api.sendMessage(`⚔️ هاجمت اللاعب! خسارته الجنود: ${damage}`, threadID, messageID);
   }
 
   api.sendMessage("❌ أمر غير معروف", threadID, messageID);
