@@ -1,221 +1,201 @@
 const fs = require("fs-extra");
 const path = require("path");
 
+/* ================== CONFIG ================== */
 module.exports.config = {
   name: "بنك",
-  version: "2.0.0",
+  version: "2.3.0",
   hasPermssion: 0,
-  credits: "عمر",
-  description: "نظام بنك متكامل: تسجيل، تنقيب، عمل، تحويل، كشف حساب، قرض، بالدولار والجنيه مع زخارف سودانية",
+  credits: "عمر + تعديل عباس",
+  description: "نظام بنك سوداني باللهجة السودانية بدون إيموجيات، مع نصوص العمل القديمة",
   commandCategory: "الاموال",
-  usages: "تسجيل/عرض/تنقيب/عمل/حول/توب/كشف/قرض",
+  usages: "تسجيل | عمل | تنقيب | حول | كشف | قرض | توب",
   cooldowns: 0
 };
 
-const bankingDir = path.join(__dirname, 'banking');
-const pathData = path.join(bankingDir, 'banking.json');
+/* ================== PATH ================== */
+const bankingDir = path.join(__dirname, "banking");
+const dataPath = path.join(bankingDir, "banking.json");
 
-// ------------------- تحميل البيانات -------------------
-function تحميل_البيانات() {
+/* ================== DATA ================== */
+function loadData() {
   if (!fs.existsSync(bankingDir)) fs.mkdirSync(bankingDir);
-  if (!fs.existsSync(pathData)) fs.writeFileSync(pathData, "[]", "utf-8");
-  return JSON.parse(fs.readFileSync(pathData, "utf-8"));
+  if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, "[]");
+  return JSON.parse(fs.readFileSync(dataPath, "utf-8"));
 }
 
-// ------------------- حفظ البيانات -------------------
-function حفظ_البيانات(المستخدمين) {
-  try {
-    fs.writeFileSync(pathData, JSON.stringify(المستخدمين, null, 2));
-  } catch (err) {
-    console.error("حدث خطأ أثناء حفظ البيانات:", err);
-  }
+function saveData(data) {
+  fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
 }
 
-// ------------------- تسجيل الحساب -------------------
-function تسجيل_الحساب(senderID, الاسم) {
-  const المستخدمين = تحميل_البيانات();
-  if (!المستخدمين.find(u => u.senderID == senderID)) {
-    المستخدمين.push({
-      senderID,
-      name: الاسم,
-      money: 0,
-      اخر_تنقيب: 0,
-      تحويلات: [],
-      دين: 0
-    });
-    حفظ_البيانات(المستخدمين);
-    return `◉⊱ مبروك يا ${الاسم}! اتسجلت في البنك بنجاح\n◉⊱ هسي ممكن تبدأ التنقيب والعمل وتحويل القروش.`;
-  } else return "⧉ انت مسجل أصلاً في البنك يا زول";
+function getUser(data, id) {
+  return data.find(u => u.id === id);
 }
 
-// ------------------- عرض الرصيد -------------------
-function عرض_الرصيد(senderID) {
-  const المستخدمين = تحميل_البيانات();
-  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: تسجيل <اسمك>";
-  return `◉⊱ رصيدك الحالي: ${المستخدم.money}$\n◉⊱ دينك الحالي: ${المستخدم.دين}$`;
+/* ================== FUNCTIONS ================== */
+function register(id, name) {
+  const data = loadData();
+  if (getUser(data, id)) return "انت مسجل اصلاً في البنك";
+
+  data.push({
+    id,
+    name,
+    money: 0,
+    debt: 0,
+    lastMine: 0,
+    transfers: []
+  });
+
+  saveData(data);
+  return `مبروك يا ${name}! اتسجلت في البنك بنجاح. ممكن تبدأ العمل والتنقيب والتحويل.`;
 }
 
-// ------------------- تنقيب -------------------
-function تنقيب(senderID, نوع) {
-  const المستخدمين = تحميل_البيانات();
-  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: تسجيل <اسمك>";
-
-  const الان = Date.now();
-  const cooldown = 10 * 60 * 1000; // 10 دقائق
-  if (المستخدم.اخر_تنقيب && الان - المستخدم.اخر_تنقيب < cooldown) {
-    const وقت_متبقي = cooldown - (الان - المستخدم.اخر_تنقيب);
-    if (وقت_متبقي > 60000) {
-      const دقيقة = Math.ceil(وقت_متبقي/60000);
-      return "⧉ انت عملت تنقيب قبل كده، استنى " + دقيقة + " دقيقة قبل ما تنقب تاني.";
-    } else {
-      const ثانية = Math.ceil(وقت_متبقي/1000);
-      return "⧉ استنى " + ثانية + " ثانية قبل ما تنقب تاني.";
-    }
-  }
-
-  let مبلغ = 0;
-  switch (نوع) {
-    case "تنقيب": مبلغ = Math.floor(Math.random() * 100) + 50; break;
-    case "تنقيب كبير": مبلغ = Math.floor(Math.random() * 200) + 150; break;
-    case "تنقيب ضخم": مبلغ = Math.floor(Math.random() * 500) + 400; break;
-    default: return "⧉ اختار نوع التنقيب: تنقيب، تنقيب كبير، تنقيب ضخم";
-  }
-
-  المستخدم.money += مبلغ;
-  المستخدم.اخر_تنقيب = الان;
-  حفظ_البيانات(المستخدمين);
-
-  return `◉⊱ عملت ${نوع} وكسبت ${مبلغ}$\n◉⊱ رصيدك هسي: ${المستخدم.money}$`;
+function balance(id) {
+  const data = loadData();
+  const user = getUser(data, id);
+  if (!user) return "لازم تسجل اولاً: تسجيل <اسمك>";
+  return `رصيدك الحالي: ${user.money}$\nدينك الحالي: ${user.debt}$`;
 }
 
-// ------------------- العمل -------------------
-function العمل(senderID) {
-  const المستخدمين = تحميل_البيانات();
-  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: تسجيل <اسمك>";
+function work(id) {
+  const data = loadData();
+  const user = getUser(data, id);
+  if (!user) return "لازم تسجل اولاً";
 
-  const الاعمال = [
-    { نص: "نمت ليلة في الفراش وبعت القضية", مبلغ: Math.floor(Math.random()*200)+50 },
-    { نص: "شتغلت قونة لفنان وحصلت على قروش", مبلغ: Math.floor(Math.random()*250)+80 },
-    { نص: "شتغلت في بيت فدادية وبعت 40 جالون عرقي", مبلغ: Math.floor(Math.random()*300)+100 },
-    { نص: "وصلت الطلبات لعدة زبائن وكسبت قروش", مبلغ: Math.floor(Math.random()*150)+50 }
+  const jobs = [
+    "عملت قونة لفنان وحصلت على",
+    "عملت في بيت فدادية وبعت 40 جالون عرقي وحصلت على",
+    "نمت ليلة في الفراش وبعت القضية وحصلت على",
+    "عملت بياع عبيد وحصلت على",
+    "عملت في مدرسة وحصلت على",
+    "عملت كمبرمج وحصلت على"
   ];
 
-  const العمل_المختار = الاعمال[Math.floor(Math.random()*الاعمال.length)];
-  المستخدم.money += العمل_المختار.مبلغ;
-  حفظ_البيانات(المستخدمين);
+  const job = jobs[Math.floor(Math.random() * jobs.length)];
+  const amount = Math.floor(Math.random() * 300) + 50; // مبلغ عشوائي لكل عمل
+  user.money += amount;
+  saveData(data);
 
-  return `◉⊱ ${العمل_المختار.نص}\n◉⊱ كسبت ${العمل_المختار.مبلغ}$\n◉⊱ رصيدك هسي: ${المستخدم.money}$`;
+  return `${job} ${amount}$`;
 }
 
-// ------------------- تحويل -------------------
-function تحويل(senderID, targetID, مبلغ, بال_جنيه=false) {
-  const المستخدمين = تحميل_البيانات();
-  const المرسل = المستخدمين.find(u => u.senderID == senderID);
-  const المستفيد = المستخدمين.find(u => u.senderID == targetID);
-  if (!المرسل) return "⧉ يا زول لازم تسجل أولاً: تسجيل <اسمك>";
-  if (!المستفيد) return "⧉ العضو المستفيد ما عنده حساب في البنك";
+function mine(id) {
+  const data = loadData();
+  const user = getUser(data, id);
+  if (!user) return "لازم تسجل اولاً";
 
-  مبلغ = Math.floor(مبلغ);
-  if (!مبلغ || مبلغ <= 0) return "⧉ حدد مبلغ صحيح";
-  if (senderID === targetID) return "⧉ ما ممكن تحول قروش لنفسك!";
-  if (المرسل.money < مبلغ) return "⧉ رصيدك ما بكفي للتحويل";
+  const now = Date.now();
+  if (now - user.lastMine < 600000)
+    return "التنقيب ممكن كل 10 دقايق";
 
-  let المبلغ_المرسل = مبلغ;
-  if (بال_جنيه) {
-    // تحويل بالدولار إلى الجنيه: نفترض 1$ = 600 جنيه سوداني
-    المبلغ_المرسل = مبلغ / 600;
-    if (المرسل.money < المبلغ_المرسل) return "⧉ رصيدك ما بكفي للتحويل بالجنيه";
-  }
+  const amount = Math.floor(Math.random() * 150) + 50;
+  user.money += amount;
+  user.lastMine = now;
+  saveData(data);
 
-  المرسل.money -= المبلغ_المرسل;
-  المستفيد.money += المبلغ_المرسل;
-
-  // تسجيل التحويلات
-  المرسل.تحويلات.push({ نوع: "صادر", الى: المستفيد.name, مبلغ });
-  المستفيد.تحويلات.push({ نوع: "وارد", من: المرسل.name, مبلغ });
-
-  حفظ_البيانات(المستخدمين);
-
-  return `◉⊱ حولت ${مبلغ}${بال_جنيه?" جنيه":"$"} للعضو ${المستفيد.name}\n◉⊱ رصيدك هسي: ${المرسل.money}$`;
+  return `عملت تنقيب وكسبت ${amount}$`;
 }
 
-// ------------------- كشف الحساب -------------------
-function كشف_الحساب(senderID) {
-  const المستخدمين = تحميل_البيانات();
-  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: تسجيل <اسمك>";
-  if (المستخدم.تحويلات.length === 0) return "⧉ ما عندك أي تحويلات حتى الآن";
+function transfer(fromID, toID, amount) {
+  const data = loadData();
+  const from = getUser(data, fromID);
+  const to = getUser(data, toID);
 
-  let رسالة = "◉⊱ سجل التحويلات:\n";
-  المستخدم.تحويلات.slice(-10).forEach(t => {
-    if (t.نوع === "صادر") رسالة += `◉⊱ أرسلت ${t.مبلغ}$ → ${t.الى}\n`;
-    else رسالة += `◉⊱ استلمت ${t.مبلغ}$ ← ${t.من}\n`;
-  });
-  return رسالة;
+  if (!from) return "لازم تسجل اولاً";
+  if (!to) return "الشخص المستفيد ما مسجل";
+  if (from.money < amount) return "رصيدك ما بكفي";
+
+  from.money -= amount;
+  to.money += amount;
+
+  from.transfers.push({ type: "out", amount, to: to.name });
+  to.transfers.push({ type: "in", amount, from: from.name });
+
+  saveData(data);
+  return `حوّلت ${amount}$ لي ${to.name}`;
 }
 
-// ------------------- أخذ قرض -------------------
-function قرض(senderID, مبلغ) {
-  const المستخدمين = تحميل_البيانات();
-  const المستخدم = المستخدمين.find(u => u.senderID == senderID);
-  if (!المستخدم) return "⧉ يا زول لازم تسجل أولاً: تسجيل <اسمك>";
-  مبلغ = Math.floor(mبلغ);
-  if (!مبلغ || مبلغ <= 0) return "⧉ اكتب مبلغ القرض صحيح";
-  المستخدم.money += مبلغ;
-  المستخدم.دين += مبلغ;
-  حفظ_البيانات(المستخدمين);
-  return `◉⊱ اخذت قرض ${مبلغ}$\n◉⊱ رصيدك هسي: ${المستخدم.money}$\n◉⊱ دينك: ${المستخدم.دين}$`;
-}
+function statement(id) {
+  const data = loadData();
+  const user = getUser(data, id);
+  if (!user) return "لازم تسجل اولاً";
+  if (!user.transfers.length) return "ما عندك أي تحويلات";
 
-// ------------------- عرض التوب -------------------
-function توب() {
-  const المستخدمين = تحميل_البيانات();
-  if (المستخدمين.length === 0) return "⧉ ما في زول مسجل حتى الآن";
-
-  const ترتيب = [...المستخدمين].sort((a,b) => b.money - a.money);
-  let رسالة = "◉⊱ قائمة أغنى المستخدمين:\n";
-  ترتيب.slice(0,10).forEach((u, index) => {
-    رسالة += `◉⊱ ${index+1}. ${u.name} → ${u.money}$\n`;
+  let msg = "آخر التحويلات:\n";
+  user.transfers.slice(-5).forEach(t => {
+    msg += t.type === "out"
+      ? `أرسلت ${t.amount}$ لي ${t.to}\n`
+      : `استلمت ${t.amount}$ من ${t.from}\n`;
   });
 
-  return رسالة;
+  return msg;
 }
 
-// ------------------- الدالة الرئيسية -------------------
+function loan(id, amount) {
+  const data = loadData();
+  const user = getUser(data, id);
+  if (!user) return "لازم تسجل اولاً";
+
+  user.money += amount;
+  user.debt += amount;
+  saveData(data);
+
+  return `اخدت قرض ${amount}$\nدينك الآن: ${user.debt}$`;
+}
+
+function top() {
+  const data = loadData();
+  if (!data.length) return "ما في زول مسجل";
+
+  const sorted = [...data].sort((a,b) => b.money - a.money);
+  let msg = "أغنى الناس:\n";
+  sorted.slice(0,10).forEach((u,i) => {
+    msg += `${i+1}. ${u.name} → ${u.money}$\n`;
+  });
+
+  return msg;
+}
+
+/* ================== RUN ================== */
 module.exports.run = async function({ api, event, args, mentions }) {
   const { senderID, threadID, messageID } = event;
-  const امر = args[0]?.toLowerCase();
-  let رسالة = "";
+  if (!args[0]) return;
 
-  if (امر === "تسجيل") {
-    const الاسم = args.slice(1).join(" ");
-    if (!الاسم) return api.sendMessage("⧉ اكتب: تسجيل <اسمك>", threadID, messageID);
-    رسالة = تسجيل_الحساب(senderID, الاسم);
-  } else {
-    const الاوامر = {
-      عرض: () => عرض_الرصيد(senderID),
-      "تنقيب": () => تنقيب(senderID, "تنقيب"),
-      "تنقيب كبير": () => تنقيب(senderID, "تنقيب كبير"),
-      "تنقيب ضخم": () => تنقيب(senderID, "تنقيب ضخم"),
-      عمل: () => العمل(senderID),
-      توب: () => توب(),
-      كشف: () => كشف_الحساب(senderID),
-      قرض: () => {
-        if (!args[1] || isNaN(parseInt(args[1]))) return "⧉ اكتب: قرض <المبلغ بالدولار>";
-        return قرض(senderID, parseInt(args[1]));
-      },
-      حول: () => {
-        if (!args[1] || isNaN(parseInt(args[1]))) return "⧉ اكتب: حول @الشخص <المبلغ>";
-        const targetID = Object.keys(mentions)[0];
-        if (!targetID) return "⧉ ضع منشن للشخص اللي عايز تحول ليه القروش";
-        return تحويل(senderID, targetID, parseInt(args[1]));
-      }
-    };
-    رسالة = (الاوامر[امر]) ? الاوامر[امر]() : "⧉ الأمر ما معروف. استعمل: تسجيل، عرض، تنقيب، عمل، حول، توب، كشف، قرض";
+  const cmd = args[0].toLowerCase();
+  let reply = null;
+
+  switch (cmd) {
+    case "تسجيل":
+      reply = register(senderID, args.slice(1).join(" "));
+      break;
+    case "عرض":
+      reply = balance(senderID);
+      break;
+    case "عمل":
+      reply = work(senderID);
+      break;
+    case "تنقيب":
+      reply = mine(senderID);
+      break;
+    case "حول":
+      const targetID = Object.keys(mentions || {})[0];
+      const amount = parseInt(args[1]);
+      if (!targetID || !amount) reply = "استعمل: حول @الشخص <المبلغ>";
+      else reply = transfer(senderID, targetID, amount);
+      break;
+    case "كشف":
+      reply = statement(senderID);
+      break;
+    case "قرض":
+      if (!args[1]) reply = "استعمل: قرض <المبلغ>";
+      else reply = loan(senderID, parseInt(args[1]));
+      break;
+    case "توب":
+      reply = top();
+      break;
+    default:
+      return;
   }
 
-  return api.sendMessage(رسالة, threadID, messageID);
+  if (reply) api.sendMessage(reply, threadID, messageID);
 };
